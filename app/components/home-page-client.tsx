@@ -158,6 +158,36 @@ export function HomePageClient() {
           ))}
         </div>
       </section>
+
+      <section className="section-card reveal reveal-delay-3">
+        <div className="section-head">
+          <h2>Our family team</h2>
+        </div>
+        <p className="page-subtitle">
+          We run Swarna Roots side by side with our day-to-day work, guided by one shared
+          family passion: helping people build healthier routines through herbs.
+        </p>
+        <div className="team-grid">
+          {siteConfig.home.team.map((member, index) => (
+            <article
+              key={member.name}
+              className="team-card reveal-stagger"
+              style={{ "--i": index } as CSSProperties}
+            >
+              <h3>{member.name}</h3>
+              <p className="team-title">{member.title}</p>
+              <p>{member.summary}</p>
+              <div className="category-badges">
+                {member.focus.map((item) => (
+                  <span key={item} className="tag">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

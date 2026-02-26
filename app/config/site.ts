@@ -90,6 +90,12 @@ export interface SiteConfig {
       quote: string;
       improvement: string;
     }>;
+    team: Array<{
+      name: string;
+      title: string;
+      summary: string;
+      focus: string[];
+    }>;
   };
 }
 
@@ -240,6 +246,29 @@ export const siteConfig: SiteConfig = {
         quote:
           "The digestive herbs and tea infusions worked beautifully after meals. Support team also guided me on what to pick.",
         improvement: "Less bloating and smoother digestion",
+      },
+    ],
+    team: [
+      {
+        name: "Raj Kumar Sharma",
+        title: "Root & Herb Sourcing Lead",
+        summary:
+          "A hardworking Himachali with deep practical knowledge of roots and herbs, and a strong connection to dairy culture and farming life.",
+        focus: ["Herb knowledge", "Farming insight", "Dairy culture"],
+      },
+      {
+        name: "Mouli Sharma",
+        title: "Natural Pharma Research",
+        summary:
+          "A pharmacy student who enjoys learning new things and exploring the therapeutic use of natural products in modern wellness.",
+        focus: ["Pharmacy studies", "Natural product research", "Learning & innovation"],
+      },
+      {
+        name: "Pushpa Sharma",
+        title: "Finance & Operations",
+        summary:
+          "A disciplined, hardworking finance lead with strong experience in farming and farmer-related activities.",
+        focus: ["Finance planning", "Rural operations", "Farmer ecosystem"],
       },
     ],
   },
