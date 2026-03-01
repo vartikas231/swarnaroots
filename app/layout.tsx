@@ -14,6 +14,11 @@ function resolvePublicUrl(value: string | undefined, fallback: string) {
   return normalized || fallback;
 }
 
+function resolvePublicValue(value: string | undefined, fallback: string) {
+  const normalized = (value ?? "").trim();
+  return normalized || fallback;
+}
+
 export const metadata: Metadata = {
   metadataBase: getMetadataBase(),
   title: {
@@ -24,6 +29,11 @@ export const metadata: Metadata = {
   applicationName: siteConfig.brand.name,
   alternates: {
     canonical: "/",
+    languages: {
+      "en-IN": "/",
+      "en-US": "/",
+      "x-default": "/",
+    },
   },
   keywords: [
     "Ayurveda",
@@ -32,10 +42,13 @@ export const metadata: Metadata = {
     "natural health",
     "Swarna Roots",
     "herbal store India",
+    "Himachal tea",
+    "wellness candles",
   ],
   openGraph: {
     type: "website",
     locale: "en_IN",
+    alternateLocale: ["en_US"],
     url: toAbsoluteUrl("/"),
     siteName: siteConfig.brand.name,
     title: `${siteConfig.brand.name} | Premium Ayurvedic Herbs`,
@@ -93,6 +106,22 @@ export default function RootLayout({
       icon: Facebook,
     },
   ].filter((item) => /^https?:\/\//i.test(item.href));
+  const complianceConfig = {
+    fssaiLicenseNumber: resolvePublicValue(
+      process.env.NEXT_PUBLIC_FSSAI_LICENSE_NUMBER,
+      siteConfig.compliance.fssaiLicenseNumber,
+    ),
+    certificatePdfUrl: resolvePublicUrl(
+      process.env.NEXT_PUBLIC_FSSAI_CERTIFICATE_URL,
+      siteConfig.compliance.certificatePdfUrl,
+    ),
+    verifyLicenseUrl: resolvePublicUrl(
+      process.env.NEXT_PUBLIC_FSSAI_VERIFY_URL,
+      siteConfig.compliance.verifyLicenseUrl,
+    ),
+  };
+  const hasCertificateLink = /^https?:\/\//i.test(complianceConfig.certificatePdfUrl);
+  const hasVerifyLink = /^https?:\/\//i.test(complianceConfig.verifyLicenseUrl);
 
   return (
     <html lang="en">
@@ -112,6 +141,39 @@ export default function RootLayout({
                       <Link href="/shop">Browse catalog</Link>
                       <Link href="/checkout">Checkout</Link>
                     </div>
+                    <details className="footer-compliance">
+                      <summary>FSSAI Trust &amp; Compliance</summary>
+                      <ul className="footer-compliance-list">
+                        <li>
+                          <span>FSSAI License Number</span>
+                          <strong>{complianceConfig.fssaiLicenseNumber}</strong>
+                        </li>
+                        <li>
+                          {hasCertificateLink ? (
+                            <a
+                              href={complianceConfig.certificatePdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              View FSSAI Certificate (PDF)
+                            </a>
+                          ) : (
+                            <span>FSSAI Certificate link will be updated soon.</span>
+                          )}
+                        </li>
+                        {hasVerifyLink ? (
+                          <li>
+                            <a
+                              href={complianceConfig.verifyLicenseUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Verify FSSAI License (FoSCoS)
+                            </a>
+                          </li>
+                        ) : null}
+                      </ul>
+                    </details>
                   </div>
                   <div className="footer-socials">
                     {socialLinks.map((item) => {

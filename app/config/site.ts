@@ -59,6 +59,15 @@ export interface SiteConfig {
     linkedinUrl: string;
     facebookUrl: string;
   };
+  marketplaces: {
+    amazonUrl: string;
+    flipkartUrl: string;
+  };
+  compliance: {
+    fssaiLicenseNumber: string;
+    certificatePdfUrl: string;
+    verifyLicenseUrl: string;
+  };
   payment: {
     primaryGateway: string;
     supportedMethods: string[];
@@ -127,6 +136,15 @@ export const siteConfig: SiteConfig = {
     linkedinUrl: "https://linkedin.com/company/swarnaroots",
     facebookUrl: "https://facebook.com/swarnaroots",
   },
+  marketplaces: {
+    amazonUrl: "https://www.amazon.in/",
+    flipkartUrl: "https://www.flipkart.com/",
+  },
+  compliance: {
+    fssaiLicenseNumber: "FSSAI LIC. NO. UPDATE_REQUIRED",
+    certificatePdfUrl: "",
+    verifyLicenseUrl: "https://foscos.fssai.gov.in/",
+  },
   payment: {
     primaryGateway: "Razorpay",
     supportedMethods: ["UPI", "Credit Cards", "Debit Cards"],
@@ -146,12 +164,12 @@ export const siteConfig: SiteConfig = {
     jade: "#5f7f6c",
   },
   brandStyle: {
-    iconTheme: "botanical-line",
-    shapeTheme: "seed",
-    iconBackground: "soft",
+    iconTheme: "clinical-minimal",
+    shapeTheme: "stone",
+    iconBackground: "none",
     radiusScale: "soft",
     iconStrokeWidth: 1.5,
-    buttonStyle: "filled-soft",
+    buttonStyle: "outline-soft",
   },
   home: {
     highlights: [
