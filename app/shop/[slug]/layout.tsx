@@ -26,8 +26,19 @@ export async function generateMetadata({
   return {
     title: product.name,
     description: product.shortDescription,
+    keywords: [
+      product.name,
+      product.category,
+      "ayurvedic product",
+      "natural wellness",
+    ],
     alternates: {
       canonical: `/shop/${product.slug}`,
+      languages: {
+        "en-IN": `/shop/${product.slug}`,
+        "en-US": `/shop/${product.slug}`,
+        "x-default": `/shop/${product.slug}`,
+      },
     },
     openGraph: {
       type: "website",

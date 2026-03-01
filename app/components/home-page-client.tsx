@@ -4,62 +4,117 @@ import { HealthIcon } from "@/app/components/health-icon";
 import { ProductCard } from "@/app/components/product-card";
 import { useStorefront } from "@/app/components/storefront-provider";
 import { siteConfig } from "@/app/config/site";
+import { getCategoryPathByName } from "@/app/lib/category-seo";
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 
 export function HomePageClient() {
   const { state } = useStorefront();
   const featuredProducts = state.products.filter((product) => product.featured).slice(0, 4);
+  const categoryQuickLinks = useMemo(() => {
+    return state.categories
+      .map((category) => ({
+        name: category,
+        count: state.products.filter((product) => product.category === category).length,
+        href: getCategoryPathByName(category) ?? "/shop",
+      }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [state.categories, state.products]);
+  const marketplaceLinks = useMemo(() => {
+    const links = [
+      {
+        label: "Shop on Amazon",
+        href: state.marketplaces.amazonUrl,
+      },
+      {
+        label: "Shop on Flipkart",
+        href: state.marketplaces.flipkartUrl,
+      },
+    ];
+    return links.filter((item) => /^https?:\/\//i.test(item.href));
+  }, [state.marketplaces.amazonUrl, state.marketplaces.flipkartUrl]);
 
   return (
     <div className="page-stack">
-      <section className="hero-panel reveal reveal-delay-1">
-        <div className="hero-copy">
-          <p className="eyebrow">{siteConfig.brand.tagline}</p>
-          <h1>{siteConfig.brand.heroTitle}</h1>
-          <p>{siteConfig.brand.heroDescription}</p>
-          <div className="hero-actions">
-            <Link className="btn btn-primary" href="/shop">
-              Explore herbal collection
-            </Link>
-            <Link className="btn btn-outline" href="/checkout">
-              Begin checkout
-            </Link>
-          </div>
-          <div className="category-badges" aria-label="Top categories">
-            {state.categories.map((category) => (
-              <span key={category} className="tag">
-                {category}
-              </span>
+      <div className="home-market-layout">
+        <aside className="section-card home-category-sidebar reveal reveal-delay-1">
+          <p className="eyebrow">Categories</p>
+          <h2>Shop by section</h2>
+          <p>Quickly open teas, candles, spices, oils, powders, and more.</p>
+
+          <nav className="home-category-list" aria-label="Homepage category shortcuts">
+            {categoryQuickLinks.map((item) => (
+              <Link key={item.name} href={item.href} className="home-category-link">
+                <span>{item.name}</span>
+                <strong>{item.count}</strong>
+              </Link>
             ))}
-          </div>
-          <div className="market-ribbon" aria-label="Market highlights">
-            <div className="market-ribbon-track">
-              <span>
-                <HealthIcon name="sprout" size={14} /> Fresh farm lots every week
-              </span>
-              <span>
-                <HealthIcon name="heart-pulse" size={14} /> Trusted by family wellness buyers
-              </span>
-              <span>
-                <HealthIcon name="flask" size={14} /> Small-batch quality checked herbs
-              </span>
-              <span>
-                <HealthIcon name="sun" size={14} /> Natural routines for daily vitality
-              </span>
+          </nav>
+        </aside>
+
+        <section className="hero-panel reveal reveal-delay-1">
+          <div className="hero-copy">
+            <p className="eyebrow">{siteConfig.brand.tagline}</p>
+            <h1>{siteConfig.brand.heroTitle}</h1>
+            <p>{siteConfig.brand.heroDescription}</p>
+            <div className="hero-actions">
+              <Link className="btn btn-primary" href="/shop">
+                Explore herbal collection
+              </Link>
+              <Link className="btn btn-outline" href="/checkout">
+                Begin checkout
+              </Link>
+            </div>
+            {marketplaceLinks.length > 0 ? (
+              <div className="marketplace-actions">
+                {marketplaceLinks.map((item) => (
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-outline"
+                  >
+                    {item.label}
+                  </a>
+                ))}
+              </div>
+            ) : null}
+            <div className="category-badges" aria-label="Top categories">
+              {categoryQuickLinks.map((category) => (
+                <Link key={category.name} href={category.href} className="tag tag-link">
+                  {category.name}
+                </Link>
+              ))}
+            </div>
+            <div className="market-ribbon" aria-label="Market highlights">
+              <div className="market-ribbon-track">
+                <span>
+                  <HealthIcon name="sprout" size={14} /> Fresh farm lots every week
+                </span>
+                <span>
+                  <HealthIcon name="heart-pulse" size={14} /> Trusted by family wellness buyers
+                </span>
+                <span>
+                  <HealthIcon name="flask" size={14} /> Small-batch quality checked herbs
+                </span>
+                <span>
+                  <HealthIcon name="sun" size={14} /> Natural routines for daily vitality
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="hero-metrics">
-          {siteConfig.home.highlights.map((item) => (
-            <article key={item.label} className="metric-card">
-              <p>{item.label}</p>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
+          <div className="hero-metrics">
+            {siteConfig.home.highlights.map((item) => (
+              <article key={item.label} className="metric-card">
+                <p>{item.label}</p>
+                <strong>{item.value}</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
 
       <section className="section-card reveal reveal-delay-2">
         <div className="section-head">

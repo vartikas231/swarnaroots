@@ -8,7 +8,18 @@ export const metadata: Metadata = {
   description: siteConfig.brand.metaDescription,
   alternates: {
     canonical: "/",
+    languages: {
+      "en-IN": "/",
+      "en-US": "/",
+      "x-default": "/",
+    },
   },
+  keywords: [
+    "modern ayurveda",
+    "premium herbal store",
+    "himachal herbs",
+    "natural wellness products",
+  ],
 };
 
 export default function Home() {

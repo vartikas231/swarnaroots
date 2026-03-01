@@ -4,6 +4,7 @@ import { AddToCartButton } from "@/app/components/add-to-cart-button";
 import { ProductCard } from "@/app/components/product-card";
 import { useStorefront } from "@/app/components/storefront-provider";
 import { formatPrice } from "@/app/lib/format";
+import { toAbsoluteUrl } from "@/app/lib/seo";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { CSSProperties } from "react";
@@ -34,9 +35,39 @@ export default function ProductDetailPage() {
         "--detail-image": `url(${product.imageUrl})`,
       } as CSSProperties)
     : undefined;
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.shortDescription,
+    sku: product.id,
+    category: product.category,
+    image: product.imageUrl ? [product.imageUrl] : undefined,
+    brand: {
+      "@type": "Brand",
+      name: "Swarna Roots",
+    },
+    offers: {
+      "@type": "Offer",
+      priceCurrency: "INR",
+      price: String(product.price),
+      availability:
+        product.stock > 0
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
+      url: toAbsoluteUrl(`/shop/${product.slug}`),
+    },
+  };
 
   return (
     <div className="page-stack">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(productJsonLd),
+        }}
+      />
+
       <section className="section-card product-detail reveal reveal-delay-1">
         <div
           className={`detail-visual ${product.toneClass} ${product.imageUrl ? "detail-visual--photo" : ""}`}

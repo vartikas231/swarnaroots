@@ -1,25 +1,20 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/src/lib/db";
-import { sendOrderConfirmationEmail } from "@/src/lib/email";
 import {
   getRazorpayClient,
   verifyRazorpayPaymentSignature,
 } from "@/src/lib/razorpay";
+import {
+  applyQuickOrderPaymentStatus,
+  toQuickOrderResponse,
+} from "@/src/lib/quick-orders";
 
 const verifySchema = z.object({
   razorpay_order_id: z.string().trim().min(1),
   razorpay_payment_id: z.string().trim().min(1),
   razorpay_signature: z.string().trim().min(1),
 });
-
-const orderItemsForEmailSchema = z.array(
-  z.object({
-    name: z.string().trim().min(1),
-    quantity: z.number().int().min(1),
-    unitLabel: z.string().trim().min(1),
-  }),
-);
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -60,57 +55,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Order not found." }, { status: 404 });
   }
 
-  if (quickOrder.paymentStatus !== "PAID") {
-    await db.quickOrder.update({
-      where: { orderNumber },
-      data: {
-        paymentStatus: "PAID",
-      },
-    });
-  }
-
-  const parsedItems = orderItemsForEmailSchema.safeParse(quickOrder.items);
-  const itemsForEmail = parsedItems.success ? parsedItems.data : [];
-
-  let emailStatus: "sent" | "queued" =
-    quickOrder.emailStatus === "sent" ? "sent" : "queued";
-
-  if (quickOrder.emailStatus !== "sent") {
-    const emailResult = await sendOrderConfirmationEmail({
-      to: quickOrder.email,
-      customerName: quickOrder.customerName,
-      orderNumber: quickOrder.orderNumber,
-      total: Number(quickOrder.total),
-      paymentMethod: quickOrder.paymentMethod,
-      items: itemsForEmail,
-    });
-
-    emailStatus = emailResult.sent ? "sent" : "queued";
-
-    await db.quickOrder.update({
-      where: { orderNumber: quickOrder.orderNumber },
-      data: { emailStatus },
-    });
-
-    await db.notification.create({
-      data: {
-        type: "ORDER_CONFIRMATION",
-        channel: "email",
-        recipient: quickOrder.email,
-        subject: `Order Confirmed: ${quickOrder.orderNumber}`,
-        body: `Payment received for ${quickOrder.orderNumber}. Razorpay payment ID: ${razorpay_payment_id}.`,
-        status: emailResult.sent ? "sent" : "pending",
-        sentAt: emailResult.sent ? new Date() : null,
-      },
-    });
-  }
-
-  return NextResponse.json({
+  const updatedOrder = await applyQuickOrderPaymentStatus({
     orderNumber: quickOrder.orderNumber,
     paymentStatus: "PAID",
-    paymentMethod: quickOrder.paymentMethod,
+    reason: `Verification callback. Razorpay payment ID: ${razorpay_payment_id}.`,
+  });
+
+  if (!updatedOrder) {
+    return NextResponse.json({ error: "Order not found." }, { status: 404 });
+  }
+
+  const payload = toQuickOrderResponse(updatedOrder);
+
+  return NextResponse.json({
+    orderNumber: payload.orderNumber,
+    paymentStatus: "PAID",
+    paymentMethod: payload.paymentMethod,
     email: {
-      status: emailStatus,
+      status: payload.emailStatus === "sent" ? "sent" : "queued",
     },
   });
 }

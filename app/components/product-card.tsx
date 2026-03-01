@@ -37,10 +37,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
         <p className="product-description">{product.shortDescription}</p>
 
         <div className="price-line">
-          <strong>{formatPrice(product.price)}</strong>
-          {product.compareAtPrice ? (
-            <span className="compare-price">{formatPrice(product.compareAtPrice)}</span>
-          ) : null}
+          <div className="price-main">
+            <strong>{formatPrice(product.price)}</strong>
+            {product.compareAtPrice ? (
+              <span className="compare-price">{formatPrice(product.compareAtPrice)}</span>
+            ) : null}
+          </div>
           <span className="unit-pill">{product.unitLabel}</span>
         </div>
 

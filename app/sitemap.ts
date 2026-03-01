@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { herbCatalog } from "@/app/data/herbs";
+import { getIndexableCategoryProfiles } from "@/app/lib/category-seo";
 import { toAbsoluteUrl } from "@/app/lib/seo";
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -27,5 +28,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.75,
   }));
 
-  return [...staticEntries, ...productEntries];
+  const categoryEntries: MetadataRoute.Sitemap = getIndexableCategoryProfiles().map(
+    (category) => ({
+      url: toAbsoluteUrl(`/shop/category/${category.slug}`),
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    }),
+  );
+
+  return [...staticEntries, ...categoryEntries, ...productEntries];
 }

@@ -44,6 +44,11 @@ export interface PaymentRecord {
   createdAt: string;
 }
 
+export interface MarketplaceLinks {
+  amazonUrl: string;
+  flipkartUrl: string;
+}
+
 interface StorefrontState {
   theme: ThemeTokens;
   brandStyle: BrandStyleTokens;
@@ -51,6 +56,7 @@ interface StorefrontState {
   categories: string[];
   stories: CustomerStory[];
   payments: PaymentRecord[];
+  marketplaces: MarketplaceLinks;
 }
 
 interface AddProductInput {
@@ -93,6 +99,8 @@ interface StorefrontContextValue {
   addStory: (input: AddStoryInput) => void;
   removeStory: (id: string) => void;
   recordPayment: (input: RecordPaymentInput) => void;
+  updateMarketplaces: (patch: Partial<MarketplaceLinks>) => void;
+  resetMarketplaces: () => void;
 }
 
 const STORAGE_KEY = "swarna-storefront-v1";
@@ -108,6 +116,7 @@ const defaultState: StorefrontState = {
   categories: getUniqueCategories(herbCatalog, starterCategories),
   stories: defaultStories,
   payments: [],
+  marketplaces: siteConfig.marketplaces,
 };
 
 const iconThemeValues: IconTheme[] = [
@@ -170,6 +179,33 @@ function normalizeImageUrl(value: string | undefined) {
   return normalized;
 }
 
+function normalizeExternalUrl(value: string | undefined, fallback: string) {
+  const normalized = (value ?? "").trim();
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (!/^https?:\/\//i.test(normalized)) {
+    return fallback;
+  }
+
+  return normalized;
+}
+
+function mergeDefaultCatalogProducts(rawProducts: HerbProduct[]) {
+  if (!rawProducts.length) {
+    return defaultState.products;
+  }
+
+  const existingIds = new Set(rawProducts.map((item) => item.id));
+  const existingSlugs = new Set(rawProducts.map((item) => item.slug));
+  const missingDefaults = defaultState.products.filter(
+    (product) => !existingIds.has(product.id) && !existingSlugs.has(product.slug),
+  );
+
+  return [...rawProducts, ...missingDefaults];
+}
+
 function normalizeState(raw: Partial<StorefrontState>): StorefrontState {
   const theme = { ...defaultState.theme, ...(raw.theme ?? {}) };
   const rawBrand: Partial<BrandStyleTokens> = raw.brandStyle ?? {};
@@ -197,7 +233,10 @@ function normalizeState(raw: Partial<StorefrontState>): StorefrontState {
       ? (rawBrand.buttonStyle as ButtonStyle)
       : defaultState.brandStyle.buttonStyle,
   };
-  const products = Array.isArray(raw.products) && raw.products.length > 0 ? raw.products : defaultState.products;
+  const products =
+    Array.isArray(raw.products) && raw.products.length > 0
+      ? mergeDefaultCatalogProducts(raw.products)
+      : defaultState.products;
   const categoriesFromProducts = getUniqueCategories(products);
   const extraCategories = Array.isArray(raw.categories)
     ? raw.categories.map((item) => item.trim()).filter(Boolean)
@@ -208,7 +247,17 @@ function normalizeState(raw: Partial<StorefrontState>): StorefrontState {
   );
   const stories = Array.isArray(raw.stories) && raw.stories.length > 0 ? raw.stories : defaultState.stories;
   const payments = Array.isArray(raw.payments) ? raw.payments : [];
-  return { theme, brandStyle, products, categories, stories, payments };
+  const marketplaces = {
+    amazonUrl: normalizeExternalUrl(
+      raw.marketplaces?.amazonUrl,
+      defaultState.marketplaces.amazonUrl,
+    ),
+    flipkartUrl: normalizeExternalUrl(
+      raw.marketplaces?.flipkartUrl,
+      defaultState.marketplaces.flipkartUrl,
+    ),
+  };
+  return { theme, brandStyle, products, categories, stories, payments, marketplaces };
 }
 
 function getInitialState() {
@@ -418,6 +467,29 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
     }));
   }, []);
 
+  const updateMarketplaces = useCallback((patch: Partial<MarketplaceLinks>) => {
+    setState((prev) => ({
+      ...prev,
+      marketplaces: {
+        amazonUrl: normalizeExternalUrl(
+          patch.amazonUrl,
+          prev.marketplaces.amazonUrl,
+        ),
+        flipkartUrl: normalizeExternalUrl(
+          patch.flipkartUrl,
+          prev.marketplaces.flipkartUrl,
+        ),
+      },
+    }));
+  }, []);
+
+  const resetMarketplaces = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      marketplaces: defaultState.marketplaces,
+    }));
+  }, []);
+
   const value = useMemo<StorefrontContextValue>(
     () => ({
       state,
@@ -432,6 +504,8 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
       addStory,
       removeStory,
       recordPayment,
+      updateMarketplaces,
+      resetMarketplaces,
     }),
     [
       state,
@@ -446,6 +520,8 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
       addStory,
       removeStory,
       recordPayment,
+      updateMarketplaces,
+      resetMarketplaces,
     ],
   );
 

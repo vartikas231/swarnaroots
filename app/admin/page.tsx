@@ -175,6 +175,7 @@ const brandPresets: BrandPreset[] = [
 ];
 
 type AdminRole = "ADMIN" | "SUPER_ADMIN";
+type OrderPaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
 
 interface AdminUser {
   id: string;
@@ -182,6 +183,25 @@ interface AdminUser {
   email: string;
   role: AdminRole;
   createdAt: string;
+}
+
+interface AdminOrder {
+  orderNumber: string;
+  customerName: string;
+  email: string;
+  phone: string;
+  city: string;
+  state: string;
+  pincode: string;
+  addressLine: string;
+  paymentMethod: string;
+  paymentStatus: OrderPaymentStatus;
+  subtotal: number;
+  shippingCost: number;
+  total: number;
+  emailStatus: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function AdminPage() {
@@ -198,6 +218,8 @@ export default function AdminPage() {
     removeProduct,
     addStory,
     removeStory,
+    updateMarketplaces,
+    resetMarketplaces,
   } = useStorefront();
 
   const [categoryInput, setCategoryInput] = useState("");
@@ -224,15 +246,22 @@ export default function AdminPage() {
     password: "",
     role: "ADMIN" as AdminRole,
   });
+  const [marketplaceForm, setMarketplaceForm] = useState({
+    amazonUrl: state.marketplaces.amazonUrl,
+    flipkartUrl: state.marketplaces.flipkartUrl,
+  });
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-
-  const sortedPayments = useMemo(() => {
-    return [...state.payments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [state.payments]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [updatingOrderNumber, setUpdatingOrderNumber] = useState<string | null>(null);
+  const [orderStatusDrafts, setOrderStatusDrafts] = useState<Record<string, OrderPaymentStatus>>(
+    {},
+  );
   const categoryStats = useMemo(() => {
     return state.categories.map((category) => ({
       name: category,
@@ -275,6 +304,49 @@ export default function AdminPage() {
   useEffect(() => {
     void loadAdminUsers();
   }, [loadAdminUsers]);
+
+  const loadOrders = useCallback(async () => {
+    setOrdersLoading(true);
+    setOrdersError(null);
+
+    try {
+      const response = await fetch("/api/admin/orders?limit=120", {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as {
+        orders?: AdminOrder[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to load orders.");
+      }
+
+      const nextOrders = payload.orders ?? [];
+      setOrders(nextOrders);
+      setOrderStatusDrafts(
+        nextOrders.reduce<Record<string, OrderPaymentStatus>>((acc, order) => {
+          acc[order.orderNumber] = order.paymentStatus;
+          return acc;
+        }, {}),
+      );
+    } catch (error) {
+      setOrdersError(error instanceof Error ? error.message : "Failed to load orders.");
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
+  useEffect(() => {
+    setMarketplaceForm({
+      amazonUrl: state.marketplaces.amazonUrl,
+      flipkartUrl: state.marketplaces.flipkartUrl,
+    });
+  }, [state.marketplaces.amazonUrl, state.marketplaces.flipkartUrl]);
 
   const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -324,6 +396,47 @@ export default function AdminPage() {
     await loadAdminUsers();
   };
 
+  const handleSaveOrderStatus = async (order: AdminOrder) => {
+    const nextStatus = orderStatusDrafts[order.orderNumber] ?? order.paymentStatus;
+    if (nextStatus === order.paymentStatus) {
+      return;
+    }
+
+    setOrdersError(null);
+    setUpdatingOrderNumber(order.orderNumber);
+
+    const response = await fetch(`/api/admin/orders/${encodeURIComponent(order.orderNumber)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        paymentStatus: nextStatus,
+        paymentMethod: order.paymentMethod,
+      }),
+    });
+
+    const payload = (await response.json()) as {
+      error?: string;
+      order?: AdminOrder;
+    };
+
+    setUpdatingOrderNumber(null);
+
+    if (!response.ok || !payload.order) {
+      setOrdersError(payload.error ?? "Failed to update order status.");
+      return;
+    }
+
+    setOrders((prev) =>
+      prev.map((item) => (item.orderNumber === payload.order?.orderNumber ? payload.order : item)),
+    );
+    setOrderStatusDrafts((prev) => ({
+      ...prev,
+      [order.orderNumber]: payload.order?.paymentStatus ?? nextStatus,
+    }));
+  };
+
   const applyBrandPreset = (preset: BrandPreset) => {
     updateTheme(preset.theme);
     updateBrandStyle(preset.brandStyle);
@@ -344,7 +457,7 @@ export default function AdminPage() {
             <h1 className="page-title">Store controls</h1>
             <p className="page-subtitle">
               Signed in as {session?.user?.email ?? "admin"} ({session?.user?.role ?? "ADMIN"}).
-              Manage theme, categories, products, stories, users, and payment history.
+              Manage theme, categories, products, stories, users, and order payments.
             </p>
           </div>
           <button
@@ -639,6 +752,60 @@ export default function AdminPage() {
       </section>
 
       <section className="section-card admin-section reveal reveal-delay-2">
+        <div className="section-head">
+          <h2>Marketplace links</h2>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => {
+              resetMarketplaces();
+            }}
+          >
+            Reset links
+          </button>
+        </div>
+        <p className="admin-helper">
+          Add your store listing URLs so customers can also shop on Amazon and Flipkart.
+        </p>
+        <form
+          className="admin-grid-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            updateMarketplaces({
+              amazonUrl: marketplaceForm.amazonUrl,
+              flipkartUrl: marketplaceForm.flipkartUrl,
+            });
+          }}
+        >
+          <label>
+            Amazon store URL
+            <input
+              type="url"
+              placeholder="https://www.amazon.in/shops/your-store"
+              value={marketplaceForm.amazonUrl}
+              onChange={(event) =>
+                setMarketplaceForm((prev) => ({ ...prev, amazonUrl: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            Flipkart store URL
+            <input
+              type="url"
+              placeholder="https://www.flipkart.com/seller/your-store"
+              value={marketplaceForm.flipkartUrl}
+              onChange={(event) =>
+                setMarketplaceForm((prev) => ({ ...prev, flipkartUrl: event.target.value }))
+              }
+            />
+          </label>
+          <button type="submit" className="btn btn-primary field-span-2">
+            Save marketplace links
+          </button>
+        </form>
+      </section>
+
+      <section className="section-card admin-section reveal reveal-delay-2">
         <h2>Categories</h2>
         <p className="admin-helper">
           These categories power your shop sidebar and product filters.
@@ -912,7 +1079,12 @@ export default function AdminPage() {
       </section>
 
       <section className="section-card admin-section reveal reveal-delay-3">
-        <h2>Payment history</h2>
+        <div className="section-head">
+          <h2>Orders & payment status</h2>
+          <button type="button" className="btn btn-outline" onClick={() => void loadOrders()}>
+            Refresh
+          </button>
+        </div>
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
@@ -920,31 +1092,76 @@ export default function AdminPage() {
                 <th>Date</th>
                 <th>Order</th>
                 <th>Customer</th>
+                <th>Location</th>
                 <th>Method</th>
-                <th>Status</th>
+                <th>Payment status</th>
+                <th>Email</th>
                 <th>Amount</th>
+                <th />
               </tr>
             </thead>
             <tbody>
-              {sortedPayments.length === 0 ? (
+              {ordersLoading ? (
                 <tr>
-                  <td colSpan={6}>No payment records yet. Place test orders from checkout.</td>
+                  <td colSpan={9}>Loading orders...</td>
+                </tr>
+              ) : orders.length === 0 ? (
+                <tr>
+                  <td colSpan={9}>No orders yet. Place test orders from checkout.</td>
                 </tr>
               ) : (
-                sortedPayments.map((payment) => (
-                  <tr key={payment.id}>
-                    <td>{new Date(payment.createdAt).toLocaleString()}</td>
-                    <td>{payment.orderNumber}</td>
-                    <td>{payment.customerName}</td>
-                    <td>{payment.method}</td>
-                    <td>{payment.status}</td>
-                    <td>{formatPrice(payment.amount)}</td>
+                orders.map((order) => (
+                  <tr key={order.orderNumber}>
+                    <td>{new Date(order.createdAt).toLocaleString()}</td>
+                    <td>{order.orderNumber}</td>
+                    <td>
+                      <strong>{order.customerName}</strong>
+                      <br />
+                      <span>{order.email}</span>
+                    </td>
+                    <td>
+                      {order.city}, {order.state}
+                    </td>
+                    <td>{order.paymentMethod}</td>
+                    <td>
+                      <select
+                        value={orderStatusDrafts[order.orderNumber] ?? order.paymentStatus}
+                        onChange={(event) =>
+                          setOrderStatusDrafts((prev) => ({
+                            ...prev,
+                            [order.orderNumber]: event.target.value as OrderPaymentStatus,
+                          }))
+                        }
+                      >
+                        <option value="PENDING">PENDING</option>
+                        <option value="PAID">PAID</option>
+                        <option value="FAILED">FAILED</option>
+                        <option value="REFUNDED">REFUNDED</option>
+                      </select>
+                    </td>
+                    <td>{order.emailStatus}</td>
+                    <td>{formatPrice(order.total)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="text-btn"
+                        disabled={
+                          updatingOrderNumber === order.orderNumber ||
+                          (orderStatusDrafts[order.orderNumber] ?? order.paymentStatus) ===
+                            order.paymentStatus
+                        }
+                        onClick={() => void handleSaveOrderStatus(order)}
+                      >
+                        {updatingOrderNumber === order.orderNumber ? "Saving..." : "Save"}
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {ordersError ? <p className="form-error">{ordersError}</p> : null}
       </section>
     </div>
   );

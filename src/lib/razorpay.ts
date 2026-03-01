@@ -56,3 +56,27 @@ export function verifyRazorpayPaymentSignature(input: {
     Buffer.from(input.signature),
   );
 }
+
+export function verifyRazorpayWebhookSignature(input: {
+  rawBody: string;
+  signature: string;
+}) {
+  const webhookSecret = getTrimmedEnv("RAZORPAY_WEBHOOK_SECRET");
+  if (!webhookSecret) {
+    throw new Error("RAZORPAY_WEBHOOK_SECRET is not configured.");
+  }
+
+  const expectedSignature = crypto
+    .createHmac("sha256", webhookSecret)
+    .update(input.rawBody)
+    .digest("hex");
+
+  if (expectedSignature.length !== input.signature.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(
+    Buffer.from(expectedSignature),
+    Buffer.from(input.signature),
+  );
+}

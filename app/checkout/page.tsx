@@ -6,7 +6,7 @@ import { useStorefront } from "@/app/components/storefront-provider";
 import { siteConfig } from "@/app/config/site";
 import { formatPrice } from "@/app/lib/format";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 
 interface RazorpayPaymentSuccessPayload {
   razorpay_order_id: string;
@@ -41,6 +41,26 @@ interface RazorpayCheckoutInstance {
   open: () => void;
 }
 
+interface ReverseGeocodeResponse {
+  display_name?: string;
+  address?: {
+    city?: string;
+    town?: string;
+    village?: string;
+    municipality?: string;
+    county?: string;
+    state?: string;
+    state_district?: string;
+    region?: string;
+    postcode?: string;
+    road?: string;
+    neighbourhood?: string;
+    suburb?: string;
+    hamlet?: string;
+    house_number?: string;
+  };
+}
+
 declare global {
   interface Window {
     Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayCheckoutInstance;
@@ -66,6 +86,16 @@ function loadRazorpayCheckoutScript() {
   });
 }
 
+function pickFirstNonEmpty(...values: Array<string | undefined>) {
+  for (const value of values) {
+    const normalized = value?.trim();
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return "";
+}
+
 export default function CheckoutPage() {
   const { lineItems, subtotal, clearCart } = useCart();
   const { recordPayment } = useStorefront();
@@ -74,6 +104,16 @@ export default function CheckoutPage() {
   const [orderEmailStatus, setOrderEmailStatus] = useState<"sent" | "queued" | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"upi" | "card" | "cod">("upi");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [locationCoords, setLocationCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const cityInputRef = useRef<HTMLInputElement | null>(null);
+  const stateInputRef = useRef<HTMLInputElement | null>(null);
+  const pincodeInputRef = useRef<HTMLInputElement | null>(null);
+  const addressInputRef = useRef<HTMLInputElement | null>(null);
 
   const shipping = subtotal > 0 && subtotal < 999 ? 60 : 0;
   const total = subtotal + shipping;
@@ -81,6 +121,121 @@ export default function CheckoutPage() {
   const itemCount = useMemo(() => {
     return lineItems.reduce((sum, item) => sum + item.quantity, 0);
   }, [lineItems]);
+
+  const mapEmbedUrl = useMemo(() => {
+    if (!locationCoords) {
+      return "";
+    }
+    const delta = 0.015;
+    const minLng = locationCoords.lng - delta;
+    const minLat = locationCoords.lat - delta;
+    const maxLng = locationCoords.lng + delta;
+    const maxLat = locationCoords.lat + delta;
+    const bbox = `${minLng},${minLat},${maxLng},${maxLat}`;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${locationCoords.lat}%2C${locationCoords.lng}`;
+  }, [locationCoords]);
+
+  const mapOpenUrl = useMemo(() => {
+    if (!locationCoords) {
+      return "";
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${locationCoords.lat},${locationCoords.lng}`;
+  }, [locationCoords]);
+
+  const handleUseCurrentLocation = () => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      setLocationMessage("Geolocation is not supported on this device.");
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationMessage("Detecting your current location...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = Number(position.coords.latitude.toFixed(6));
+        const lng = Number(position.coords.longitude.toFixed(6));
+        setLocationCoords({ lat, lng });
+
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&addressdetails=1`,
+            {
+              headers: {
+                Accept: "application/json",
+              },
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error("Failed to reverse geocode location.");
+          }
+
+          const payload = (await response.json()) as ReverseGeocodeResponse;
+          const address = payload.address ?? {};
+          const city = pickFirstNonEmpty(
+            address.city,
+            address.town,
+            address.village,
+            address.municipality,
+            address.county,
+          );
+          const state = pickFirstNonEmpty(
+            address.state,
+            address.state_district,
+            address.region,
+          );
+          const pincode = pickFirstNonEmpty(address.postcode);
+          const primaryAddressLine = pickFirstNonEmpty(
+            [address.house_number, address.road].filter(Boolean).join(" ").trim(),
+            address.neighbourhood,
+            address.suburb,
+            address.hamlet,
+          );
+          const fallbackAddress = payload.display_name
+            ?.split(",")
+            .slice(0, 3)
+            .join(",")
+            .trim();
+          const addressLine = pickFirstNonEmpty(primaryAddressLine, fallbackAddress);
+
+          if (cityInputRef.current && city) {
+            cityInputRef.current.value = city;
+          }
+          if (stateInputRef.current && state) {
+            stateInputRef.current.value = state;
+          }
+          if (pincodeInputRef.current && pincode) {
+            pincodeInputRef.current.value = pincode;
+          }
+          if (addressInputRef.current && addressLine) {
+            addressInputRef.current.value = addressLine;
+          }
+
+          setLocationMessage(
+            "Location detected and address fields auto-filled. Please verify before placing order.",
+          );
+        } catch {
+          setLocationMessage(
+            "Location captured. Please complete address fields manually if anything is missing.",
+          );
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      () => {
+        setIsLocating(false);
+        setLocationMessage(
+          "Unable to access your location. Allow location permission and try again.",
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0,
+      },
+    );
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -333,11 +488,18 @@ export default function CheckoutPage() {
             </label>
             <label>
               City
-              <input required type="text" name="city" placeholder="Mumbai" />
+              <input
+                ref={cityInputRef}
+                required
+                type="text"
+                name="city"
+                placeholder="Mumbai"
+              />
             </label>
             <label className="field-span-2">
               Address line
               <input
+                ref={addressInputRef}
                 required
                 type="text"
                 name="address"
@@ -346,13 +508,57 @@ export default function CheckoutPage() {
             </label>
             <label>
               State
-              <input required type="text" name="state" placeholder="Maharashtra" />
+              <input
+                ref={stateInputRef}
+                required
+                type="text"
+                name="state"
+                placeholder="Maharashtra"
+              />
             </label>
             <label>
               Pincode
-              <input required type="text" name="pincode" placeholder="400001" />
+              <input
+                ref={pincodeInputRef}
+                required
+                type="text"
+                name="pincode"
+                placeholder="400001"
+              />
             </label>
           </div>
+
+          <article className="location-card">
+            <div className="location-card-head">
+              <strong>Location accuracy</strong>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm location-btn"
+                onClick={handleUseCurrentLocation}
+                disabled={isLocating}
+              >
+                {isLocating ? "Detecting..." : "Use Current Location"}
+              </button>
+            </div>
+            <p>
+              Auto-fill city, state, pincode, and address from your current position for
+              accurate delivery details.
+            </p>
+            {locationMessage ? <p className="location-message">{locationMessage}</p> : null}
+            {locationCoords ? (
+              <div className="checkout-map-panel">
+                <iframe
+                  title="Delivery location preview map"
+                  src={mapEmbedUrl}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+                <a href={mapOpenUrl} target="_blank" rel="noopener noreferrer">
+                  Open in Google Maps
+                </a>
+              </div>
+            ) : null}
+          </article>
 
           <fieldset className="payment-methods">
             <legend>Payment method</legend>
