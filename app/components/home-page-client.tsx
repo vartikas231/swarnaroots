@@ -20,6 +20,9 @@ export function HomePageClient() {
       }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [state.categories, state.products]);
+  const supportWhatsappHref = useMemo(() => {
+    return `https://wa.me/${siteConfig.support.whatsappNumber}?text=${encodeURIComponent(siteConfig.support.whatsappMessage)}`;
+  }, []);
   const marketplaceLinks = useMemo(() => {
     const links = [
       {
@@ -33,88 +36,211 @@ export function HomePageClient() {
     ];
     return links.filter((item) => /^https?:\/\//i.test(item.href));
   }, [state.marketplaces.amazonUrl, state.marketplaces.flipkartUrl]);
+  const heroCollections = useMemo(() => {
+    const collectionCopy = [
+      {
+        name: "Himachal Teas",
+        eyebrow: "Mountain freshness",
+        description: "Small-batch tea selections inspired by Palampur hills and slower daily rituals.",
+        accentClass: "hero-collection-card--tea",
+      },
+      {
+        name: "Wellness Candles",
+        eyebrow: "Evening ritual",
+        description: "Warm botanical candles designed to make the store feel like a calming shelf, not a catalog.",
+        accentClass: "hero-collection-card--candle",
+      },
+      {
+        name: "Botanical Soaps",
+        eyebrow: "Bath care",
+        description: "Clean herbal soaps with a more giftable, real-market presentation.",
+        accentClass: "hero-collection-card--soap",
+      },
+      {
+        name: "Seeds",
+        eyebrow: "Grow at home",
+        description: "Seed collections that connect the brand back to roots, farming, and fresh beginnings.",
+        accentClass: "hero-collection-card--seed",
+      },
+    ];
+
+    return collectionCopy.map((item) => {
+      const match = categoryQuickLinks.find((category) => category.name === item.name);
+      return {
+        ...item,
+        count: match?.count ?? 0,
+        href: match?.href ?? "/shop",
+      };
+    });
+  }, [categoryQuickLinks]);
+  const spotlightCollection = heroCollections[0];
+  const supportingCollections = heroCollections.slice(1);
+  const curatedCategories = categoryQuickLinks.slice(0, 10);
+  const heroProductHighlights = featuredProducts.slice(0, 3);
 
   return (
     <div className="page-stack">
-      <div className="home-market-layout">
-        <aside className="section-card home-category-sidebar reveal reveal-delay-1">
-          <p className="eyebrow">Categories</p>
-          <h2>Shop by section</h2>
-          <p>Quickly open teas, candles, spices, oils, powders, and more.</p>
+      <section className="hero-panel hero-panel--landing reveal reveal-delay-1">
+        <div className="hero-copy">
+          <p className="eyebrow">{siteConfig.brand.tagline}</p>
+          <span className="hero-kicker">Bright herbal market, Himachal soul, premium trust</span>
+          <h1>Herbs, teas, candles, soaps, and daily care rituals that feel genuinely real.</h1>
+          <p className="hero-intro">
+            A cleaner storefront with clearer shopping, a brighter white-pink-green-gold palette,
+            and enough structure to feel premium from the first screen.
+          </p>
 
-          <nav className="home-category-list" aria-label="Homepage category shortcuts">
-            {categoryQuickLinks.map((item) => (
-              <Link key={item.name} href={item.href} className="home-category-link">
-                <span>{item.name}</span>
-                <strong>{item.count}</strong>
-              </Link>
+          <div className="hero-feature-strip">
+            {siteConfig.home.trustPoints.map((point) => (
+              <article key={point.id} className="hero-feature-card">
+                <span className="icon-badge" aria-hidden="true">
+                  <HealthIcon name={point.icon} size={16} />
+                </span>
+                <div>
+                  <strong>{point.title}</strong>
+                  <p>{point.description}</p>
+                </div>
+              </article>
             ))}
-          </nav>
-        </aside>
-
-        <section className="hero-panel reveal reveal-delay-1">
-          <div className="hero-copy">
-            <p className="eyebrow">{siteConfig.brand.tagline}</p>
-            <h1>{siteConfig.brand.heroTitle}</h1>
-            <p>{siteConfig.brand.heroDescription}</p>
-            <div className="hero-actions">
-              <Link className="btn btn-primary" href="/shop">
-                Explore herbal collection
-              </Link>
-              <Link className="btn btn-outline" href="/checkout">
-                Begin checkout
-              </Link>
-            </div>
-            {marketplaceLinks.length > 0 ? (
-              <div className="marketplace-actions">
-                {marketplaceLinks.map((item) => (
-                  <a
-                    key={item.label}
-                    href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-outline"
-                  >
-                    {item.label}
-                  </a>
-                ))}
-              </div>
-            ) : null}
-            <div className="category-badges" aria-label="Top categories">
-              {categoryQuickLinks.map((category) => (
-                <Link key={category.name} href={category.href} className="tag tag-link">
-                  {category.name}
-                </Link>
-              ))}
-            </div>
-            <div className="market-ribbon" aria-label="Market highlights">
-              <div className="market-ribbon-track">
-                <span>
-                  <HealthIcon name="sprout" size={14} /> Fresh farm lots every week
-                </span>
-                <span>
-                  <HealthIcon name="heart-pulse" size={14} /> Trusted by family wellness buyers
-                </span>
-                <span>
-                  <HealthIcon name="flask" size={14} /> Small-batch quality checked herbs
-                </span>
-                <span>
-                  <HealthIcon name="sun" size={14} /> Natural routines for daily vitality
-                </span>
-              </div>
-            </div>
           </div>
 
-          <div className="hero-metrics">
+          <div className="hero-actions">
+            <Link className="btn btn-primary" href="/shop">
+              Explore all collections
+            </Link>
+            <Link className="btn btn-outline" href="/track-order">
+              Track an order
+            </Link>
+          </div>
+          {marketplaceLinks.length > 0 ? (
+            <div className="marketplace-actions">
+              {marketplaceLinks.map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-outline"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="hero-stats-grid" aria-label="Storefront highlights">
             {siteConfig.home.highlights.map((item) => (
-              <article key={item.label} className="metric-card">
-                <p>{item.label}</p>
+              <article key={item.label} className="hero-stat-card">
+                <span>{item.label}</span>
                 <strong>{item.value}</strong>
               </article>
             ))}
           </div>
-        </section>
-      </div>
+        </div>
+
+        <div className="hero-media-stage">
+          <div className="hero-media-canvas">
+            <span className="hero-media-label">Hero media stage</span>
+            <strong>Ready for GIFs, product loops, or a bold campaign visual later.</strong>
+            <p>
+              This area is intentionally built like a premium banner canvas so we can add
+              motion visuals, ingredient films, or product storytelling without changing the
+              homepage layout again.
+            </p>
+            <div className="hero-media-tags">
+              {heroProductHighlights.map((product) => (
+                <span key={product.id} className="hero-media-tag">
+                  {product.name}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="hero-media-grid">
+            {spotlightCollection ? (
+              <Link
+                href={spotlightCollection.href}
+                className="hero-collection-card hero-collection-card--spotlight"
+              >
+                <span className="hero-collection-eyebrow">{spotlightCollection.eyebrow}</span>
+                <strong>{spotlightCollection.name}</strong>
+                <p>{spotlightCollection.description}</p>
+                <div className="hero-collection-meta">
+                  <span>{spotlightCollection.count} live products</span>
+                  <span>Open collection</span>
+                </div>
+              </Link>
+            ) : null}
+
+            {supportingCollections.map((collection) => (
+              <Link
+                key={collection.name}
+                href={collection.href}
+                className={`hero-collection-card ${collection.accentClass}`}
+              >
+                <span className="hero-collection-eyebrow">{collection.eyebrow}</span>
+                <strong>{collection.name}</strong>
+                <p>{collection.description}</p>
+                <div className="hero-collection-meta">
+                  <span>{collection.count} live products</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section-card home-category-hub reveal reveal-delay-2">
+        <div className="home-category-hub-copy">
+          <p className="eyebrow">Store Sections</p>
+          <h2>Shop every ritual in one place</h2>
+          <p>
+            Give customers a clear path into teas, candles, soaps, loofahs, seeds, oils,
+            herbs, and pantry wellness staples without crowding the banner itself.
+          </p>
+
+          <div className="sidebar-support-card">
+            <p className="sidebar-support-label">Need a recommendation?</p>
+            <strong>Talk to a real person before ordering.</strong>
+            <p>
+              Use WhatsApp or email and we can guide customers toward the right routine,
+              gifting option, or wellness section.
+            </p>
+            <div className="sidebar-support-actions">
+              <a href={supportWhatsappHref} target="_blank" rel="noopener noreferrer">
+                WhatsApp support
+              </a>
+              <a href={`mailto:${siteConfig.support.email}`}>Connect over email</a>
+            </div>
+          </div>
+
+          <div className="market-ribbon" aria-label="Market highlights">
+            <div className="market-ribbon-track">
+              <span>
+                <HealthIcon name="sprout" size={14} /> Fresh farm lots every week
+              </span>
+              <span>
+                <HealthIcon name="heart-pulse" size={14} /> Trusted by family wellness buyers
+              </span>
+              <span>
+                <HealthIcon name="flask" size={14} /> Small-batch quality checked herbs
+              </span>
+              <span>
+                <HealthIcon name="sun" size={14} /> Natural routines for daily vitality
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <nav className="home-category-grid" aria-label="Homepage category shortcuts">
+          {curatedCategories.map((item) => (
+            <Link key={item.name} href={item.href} className="home-category-link">
+              <span>{item.name}</span>
+              <strong>{item.count}</strong>
+            </Link>
+          ))}
+        </nav>
+      </section>
 
       <section className="section-card reveal reveal-delay-2">
         <div className="section-head">

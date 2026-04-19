@@ -22,6 +22,17 @@ interface SendOrderConfirmationResult {
   error?: string;
 }
 
+interface SendOrderShipmentUpdateInput {
+  to: string;
+  customerName: string;
+  orderNumber: string;
+  shipmentStatusLabel: string;
+  shippingProvider?: string | null;
+  shippingServiceName?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+}
+
 interface SendAuthMagicLinkInput {
   to: string;
   url: string;
@@ -245,6 +256,103 @@ export async function sendAuthMagicLinkEmail(
       sent: false,
       provider: "resend",
       error: error instanceof Error ? error.message : "Unknown auth email send error.",
+    };
+  }
+}
+
+export async function sendOrderShipmentUpdateEmail(
+  input: SendOrderShipmentUpdateInput,
+): Promise<SendOrderConfirmationResult> {
+  const providerLabel = [input.shippingProvider, input.shippingServiceName]
+    .map((item) => item?.trim())
+    .filter(Boolean)
+    .join(" - ");
+
+  const trackingLines = [
+    input.trackingNumber ? `Tracking number: ${input.trackingNumber}` : null,
+    input.trackingUrl ? `Track your shipment: ${input.trackingUrl}` : null,
+  ].filter(Boolean) as string[];
+
+  const subject = `Order Update: ${input.orderNumber}`;
+  const text = [
+    `Hi ${input.customerName},`,
+    "",
+    `Your order ${input.orderNumber} is now ${input.shipmentStatusLabel}.`,
+    providerLabel ? `Shipping partner: ${providerLabel}` : null,
+    ...trackingLines,
+    "",
+    "Thank you for shopping with Swarna Roots.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #213328; line-height: 1.5;">
+      <p>Hi ${input.customerName},</p>
+      <p>Your order <strong>${input.orderNumber}</strong> is now <strong>${input.shipmentStatusLabel}</strong>.</p>
+      ${
+        providerLabel
+          ? `<p>Shipping partner: <strong>${providerLabel}</strong></p>`
+          : ""
+      }
+      ${
+        input.trackingNumber
+          ? `<p>Tracking number: <strong>${input.trackingNumber}</strong></p>`
+          : ""
+      }
+      ${
+        input.trackingUrl
+          ? `<p><a href="${input.trackingUrl}" target="_blank" rel="noopener noreferrer" style="color:#1f6d4e;font-weight:700;">Track your shipment</a></p>`
+          : ""
+      }
+      <p>Thank you for shopping with Swarna Roots.</p>
+    </div>
+  `;
+
+  const gmailResult = await sendViaGmail({
+    to: input.to,
+    subject,
+    text,
+    html,
+    from: orderFromAddress,
+  });
+
+  if (gmailResult.sent) {
+    return { sent: true, provider: "gmail" };
+  }
+
+  if (gmailResult.provider === "gmail" && gmailResult.error) {
+    return {
+      sent: false,
+      provider: "gmail",
+      error: gmailResult.error,
+    };
+  }
+
+  const resend = getResendClient();
+  if (!resend) {
+    console.log("[email:fallback] Missing Gmail SMTP and RESEND_API_KEY, logging shipment email.", {
+      to: input.to,
+      subject,
+      text,
+    });
+    return { sent: false, provider: "console" };
+  }
+
+  try {
+    await resend.emails.send({
+      from: orderFromAddress,
+      to: [input.to],
+      subject,
+      text,
+      html,
+    });
+    return { sent: true, provider: "resend" };
+  } catch (error) {
+    return {
+      sent: false,
+      provider: "resend",
+      error: error instanceof Error ? error.message : "Unknown email send error.",
     };
   }
 }

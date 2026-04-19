@@ -101,6 +101,7 @@ export default function CheckoutPage() {
   const { recordPayment } = useStorefront();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [orderLookupEmail, setOrderLookupEmail] = useState<string | null>(null);
   const [orderEmailStatus, setOrderEmailStatus] = useState<"sent" | "queued" | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"upi" | "card" | "cod">("upi");
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -301,6 +302,7 @@ export default function CheckoutPage() {
       }
 
       setOrderNumber(codPayload.orderNumber);
+      setOrderLookupEmail(customerEmail);
       setOrderEmailStatus(codPayload.email?.status ?? "queued");
       recordPayment({
         orderNumber: codPayload.orderNumber,
@@ -413,6 +415,7 @@ export default function CheckoutPage() {
         }
 
         setOrderNumber(verifyPayload.orderNumber);
+        setOrderLookupEmail(customerEmail);
         setOrderEmailStatus(verifyPayload.email?.status ?? "queued");
         recordPayment({
           orderNumber: verifyPayload.orderNumber,
@@ -443,6 +446,14 @@ export default function CheckoutPage() {
             : "Order is confirmed. Email confirmation is queued and will be sent shortly."}
         </p>
         <div className="hero-actions">
+          {orderLookupEmail ? (
+            <Link
+              href={`/track-order?orderNumber=${encodeURIComponent(orderNumber)}&email=${encodeURIComponent(orderLookupEmail)}`}
+              className="btn btn-primary"
+            >
+              Track this order
+            </Link>
+          ) : null}
           <Link href="/shop" className="btn btn-primary">
             Continue shopping
           </Link>

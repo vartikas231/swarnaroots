@@ -1,10 +1,10 @@
 "use client";
 
 import { useCart } from "@/app/components/cart-provider";
-import { HealthIcon } from "@/app/components/health-icon";
 import { siteConfig } from "@/app/config/site";
 import { ShoppingBag } from "lucide-react";
 import { useSession } from "next-auth/react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -19,7 +19,14 @@ export function StoreHeader() {
     <header className="store-header reveal">
       <Link href="/" className="brand-link">
         <span className="brand-icon" aria-hidden="true">
-          <HealthIcon name="leaf" size={14} />
+          <Image
+            src={siteConfig.brand.logoUrl}
+            alt=""
+            width={34}
+            height={34}
+            className="brand-logo-image"
+            priority
+          />
         </span>
         {siteConfig.brand.name}
       </Link>

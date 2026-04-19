@@ -7,6 +7,7 @@ import {
   type IconBackgroundMode,
   type IconStrokeWidth,
   type IconTheme,
+  type LayoutTokens,
   type RadiusScale,
   type ShapeTheme,
   type ThemeTokens,
@@ -52,6 +53,7 @@ export interface MarketplaceLinks {
 interface StorefrontState {
   theme: ThemeTokens;
   brandStyle: BrandStyleTokens;
+  layout: LayoutTokens;
   products: HerbProduct[];
   categories: string[];
   stories: CustomerStory[];
@@ -63,6 +65,7 @@ interface AddProductInput {
   name: string;
   category: string;
   imageUrl?: string;
+  imageUrls?: string[];
   price: number;
   stock: number;
   shortDescription: string;
@@ -92,9 +95,12 @@ interface StorefrontContextValue {
   resetTheme: () => void;
   updateBrandStyle: (patch: Partial<BrandStyleTokens>) => void;
   resetBrandStyle: () => void;
+  updateLayout: (patch: Partial<LayoutTokens>) => void;
+  resetLayout: () => void;
   addCategory: (name: string) => void;
   removeCategory: (name: string) => void;
   addProduct: (input: AddProductInput) => void;
+  updateProductImages: (id: string, imageUrls: string[]) => void;
   removeProduct: (id: string) => void;
   addStory: (input: AddStoryInput) => void;
   removeStory: (id: string) => void;
@@ -104,6 +110,7 @@ interface StorefrontContextValue {
 }
 
 const STORAGE_KEY = "swarna-storefront-v1";
+const THEME_REVISION = 3;
 const defaultStories: CustomerStory[] = siteConfig.home.stories.map((story, index) => ({
   id: `story-${index + 1}`,
   ...story,
@@ -112,6 +119,7 @@ const defaultStories: CustomerStory[] = siteConfig.home.stories.map((story, inde
 const defaultState: StorefrontState = {
   theme: siteConfig.theme,
   brandStyle: siteConfig.brandStyle,
+  layout: siteConfig.layout,
   products: herbCatalog,
   categories: getUniqueCategories(herbCatalog, starterCategories),
   stories: defaultStories,
@@ -140,6 +148,14 @@ const buttonStyleValues: ButtonStyle[] = [
   "outline-soft",
   "text-minimal",
 ];
+
+const layoutCssKeyMap: Record<keyof LayoutTokens, string> = {
+  shellMaxWidthPx: "--shell-max-width",
+  shellSideMarginPx: "--shell-side-margin",
+  heroMinHeightVh: "--hero-min-height",
+  cardRadiusPx: "--surface-radius",
+  sectionGapPx: "--section-gap",
+};
 
 const themeCssKeyMap: Record<keyof ThemeTokens, string> = {
   bg: "--bg",
@@ -179,6 +195,73 @@ function normalizeImageUrl(value: string | undefined) {
   return normalized;
 }
 
+function normalizeImageUrls(values: string[] | undefined, fallback?: string) {
+  const seen = new Set<string>();
+  return [...(values ?? []), fallback ?? ""]
+    .map((item) => normalizeImageUrl(item))
+    .filter((item): item is string => Boolean(item))
+    .filter((item) => {
+      if (seen.has(item)) {
+        return false;
+      }
+      seen.add(item);
+      return true;
+    })
+    .slice(0, 5);
+}
+
+function normalizeProduct(product: HerbProduct): HerbProduct {
+  const images = normalizeImageUrls(product.images, product.imageUrl);
+  return {
+    ...product,
+    imageUrl: images[0],
+    images,
+  };
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+function normalizeLayout(layout: Partial<LayoutTokens> | undefined): LayoutTokens {
+  return {
+    shellMaxWidthPx: clampNumber(
+      layout?.shellMaxWidthPx,
+      1100,
+      1920,
+      defaultState.layout.shellMaxWidthPx,
+    ),
+    shellSideMarginPx: clampNumber(
+      layout?.shellSideMarginPx,
+      12,
+      140,
+      defaultState.layout.shellSideMarginPx,
+    ),
+    heroMinHeightVh: clampNumber(
+      layout?.heroMinHeightVh,
+      42,
+      78,
+      defaultState.layout.heroMinHeightVh,
+    ),
+    cardRadiusPx: clampNumber(
+      layout?.cardRadiusPx,
+      2,
+      24,
+      defaultState.layout.cardRadiusPx,
+    ),
+    sectionGapPx: clampNumber(
+      layout?.sectionGapPx,
+      10,
+      40,
+      defaultState.layout.sectionGapPx,
+    ),
+  };
+}
+
 function normalizeExternalUrl(value: string | undefined, fallback: string) {
   const normalized = (value ?? "").trim();
   if (!normalized) {
@@ -197,18 +280,26 @@ function mergeDefaultCatalogProducts(rawProducts: HerbProduct[]) {
     return defaultState.products;
   }
 
-  const existingIds = new Set(rawProducts.map((item) => item.id));
-  const existingSlugs = new Set(rawProducts.map((item) => item.slug));
+  const normalizedProducts = rawProducts.map(normalizeProduct);
+  const existingIds = new Set(normalizedProducts.map((item) => item.id));
+  const existingSlugs = new Set(normalizedProducts.map((item) => item.slug));
   const missingDefaults = defaultState.products.filter(
     (product) => !existingIds.has(product.id) && !existingSlugs.has(product.slug),
   );
 
-  return [...rawProducts, ...missingDefaults];
+  return [...normalizedProducts, ...missingDefaults];
 }
 
-function normalizeState(raw: Partial<StorefrontState>): StorefrontState {
-  const theme = { ...defaultState.theme, ...(raw.theme ?? {}) };
-  const rawBrand: Partial<BrandStyleTokens> = raw.brandStyle ?? {};
+function normalizeState(
+  raw: Partial<StorefrontState> & { themeRevision?: number },
+): StorefrontState {
+  const shouldResetTheme = raw.themeRevision !== THEME_REVISION;
+  const theme = shouldResetTheme
+    ? defaultState.theme
+    : { ...defaultState.theme, ...(raw.theme ?? {}) };
+  const rawBrand: Partial<BrandStyleTokens> = shouldResetTheme
+    ? defaultState.brandStyle
+    : (raw.brandStyle ?? {});
   const brandStyle: BrandStyleTokens = {
     iconTheme: iconThemeValues.includes(rawBrand.iconTheme as IconTheme)
       ? (rawBrand.iconTheme as IconTheme)
@@ -233,6 +324,7 @@ function normalizeState(raw: Partial<StorefrontState>): StorefrontState {
       ? (rawBrand.buttonStyle as ButtonStyle)
       : defaultState.brandStyle.buttonStyle,
   };
+  const layout = normalizeLayout(raw.layout);
   const products =
     Array.isArray(raw.products) && raw.products.length > 0
       ? mergeDefaultCatalogProducts(raw.products)
@@ -257,7 +349,7 @@ function normalizeState(raw: Partial<StorefrontState>): StorefrontState {
       defaultState.marketplaces.flipkartUrl,
     ),
   };
-  return { theme, brandStyle, products, categories, stories, payments, marketplaces };
+  return { theme, brandStyle, layout, products, categories, stories, payments, marketplaces };
 }
 
 function getInitialState() {
@@ -274,7 +366,9 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
       if (!raw) {
         return;
       }
-      const parsed = JSON.parse(raw) as Partial<StorefrontState>;
+      const parsed = JSON.parse(raw) as Partial<StorefrontState> & {
+        themeRevision?: number;
+      };
       setState(normalizeState(parsed));
     } catch {
       // Keep defaults when persisted payload is malformed.
@@ -287,7 +381,13 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
     if (!hasLoadedStorage) {
       return;
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...state,
+        themeRevision: THEME_REVISION,
+      }),
+    );
   }, [state, hasLoadedStorage]);
 
   useEffect(() => {
@@ -307,6 +407,15 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
     root.setAttribute("data-button-style", state.brandStyle.buttonStyle);
     root.style.setProperty("--icon-stroke-width", String(state.brandStyle.iconStrokeWidth));
   }, [state.brandStyle]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const entries = Object.entries(state.layout) as Array<[keyof LayoutTokens, number]>;
+    for (const [layoutKey, value] of entries) {
+      const cssValue = layoutKey === "heroMinHeightVh" ? `${value}vh` : `${value}px`;
+      root.style.setProperty(layoutCssKeyMap[layoutKey], cssValue);
+    }
+  }, [state.layout]);
 
   const updateTheme = useCallback((patch: Partial<ThemeTokens>) => {
     setState((prev) => ({
@@ -328,6 +437,17 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
 
   const resetBrandStyle = useCallback(() => {
     setState((prev) => ({ ...prev, brandStyle: defaultState.brandStyle }));
+  }, []);
+
+  const updateLayout = useCallback((patch: Partial<LayoutTokens>) => {
+    setState((prev) => ({
+      ...prev,
+      layout: normalizeLayout({ ...prev.layout, ...patch }),
+    }));
+  }, []);
+
+  const resetLayout = useCallback(() => {
+    setState((prev) => ({ ...prev, layout: defaultState.layout }));
   }, []);
 
   const addCategory = useCallback((name: string) => {
@@ -384,12 +504,14 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
       }
 
       const category = input.category.trim() || defaultState.categories[0];
-      const imageUrl = normalizeImageUrl(input.imageUrl);
+      const imageUrls = normalizeImageUrls(input.imageUrls, input.imageUrl);
+      const imageUrl = imageUrls[0];
       const product: HerbProduct = {
         id: `custom-${Date.now()}`,
         slug,
         name,
         imageUrl,
+        images: imageUrls,
         botanicalName: input.botanicalName.trim() || "Herbal Blend",
         category,
         shortDescription: input.shortDescription.trim() || "Premium wellness herb.",
@@ -426,6 +548,22 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
         products: nextProducts,
       };
     });
+  }, []);
+
+  const updateProductImages = useCallback((id: string, imageUrls: string[]) => {
+    const images = normalizeImageUrls(imageUrls);
+    setState((prev) => ({
+      ...prev,
+      products: prev.products.map((product) =>
+        product.id === id
+          ? {
+              ...product,
+              imageUrl: images[0],
+              images,
+            }
+          : product,
+      ),
+    }));
   }, []);
 
   const addStory = useCallback((input: AddStoryInput) => {
@@ -503,9 +641,12 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
       resetTheme,
       updateBrandStyle,
       resetBrandStyle,
+      updateLayout,
+      resetLayout,
       addCategory,
       removeCategory,
       addProduct,
+      updateProductImages,
       removeProduct,
       addStory,
       removeStory,
@@ -519,9 +660,12 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
       resetTheme,
       updateBrandStyle,
       resetBrandStyle,
+      updateLayout,
+      resetLayout,
       addCategory,
       removeCategory,
       addProduct,
+      updateProductImages,
       removeProduct,
       addStory,
       removeStory,

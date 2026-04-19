@@ -5,6 +5,7 @@ export interface HerbProduct {
   slug: string;
   name: string;
   imageUrl?: string;
+  images?: string[];
   botanicalName: string;
   category: HerbCategory;
   shortDescription: string;
@@ -27,6 +28,9 @@ export const starterCategories = [
   "Herbal Teas",
   "Himachal Teas",
   "Wellness Candles",
+  "Botanical Soaps",
+  "Natural Loofahs",
+  "Seeds",
   "Capsules",
   "Digestive Support",
 ];
@@ -488,6 +492,138 @@ export const herbCatalog: HerbProduct[] = [
     featured: false,
     toneClass: "tone-turmeric",
   },
+  {
+    id: "lemongrass-basil-focus-candle",
+    slug: "lemongrass-basil-focus-candle",
+    name: "Lemongrass Basil Focus Candle",
+    botanicalName: "Soy wax with lemongrass and basil oils",
+    category: "Wellness Candles",
+    shortDescription: "Fresh citrus-herbal candle for work corners and mindful mornings.",
+    description:
+      "A bright soy candle with lemongrass, basil, and soft herb-garden notes. Designed for study tables, early work rituals, and fresh home energy.",
+    benefits: [
+      "Clean bright aroma for focus-friendly spaces",
+      "Hand-poured soy wax with modern botanical profile",
+      "Pairs well with tea rituals and slow mornings",
+    ],
+    usage: "Burn 2-3 hours at a time and trim the wick before relighting.",
+    unitLabel: "190g amber jar",
+    price: 729,
+    compareAtPrice: 799,
+    stock: 33,
+    featured: false,
+    toneClass: "tone-moringa",
+  },
+  {
+    id: "neem-turmeric-bathing-bar",
+    slug: "neem-turmeric-bathing-bar",
+    name: "Neem Turmeric Bathing Bar",
+    botanicalName: "Cold-process botanical soap",
+    category: "Botanical Soaps",
+    shortDescription: "Earthy daily-use cleansing bar with neem and turmeric notes.",
+    description:
+      "A gentle botanical bathing bar made with plant oils, neem, and turmeric-inspired cleansing support. Crafted for a fresh, grounded bath ritual.",
+    benefits: [
+      "Botanical soap profile for daily cleansing",
+      "Balanced earthy aroma with creamy lather",
+      "Palm-free small-batch bar",
+    ],
+    usage: "Lather with water, rinse well, and keep the bar dry between uses.",
+    unitLabel: "110g bar",
+    price: 249,
+    compareAtPrice: 289,
+    stock: 84,
+    featured: true,
+    toneClass: "tone-neem",
+  },
+  {
+    id: "rose-sandal-handmade-soap",
+    slug: "rose-sandal-handmade-soap",
+    name: "Rose Sandal Handmade Soap",
+    botanicalName: "Artisanal floral cleansing bar",
+    category: "Botanical Soaps",
+    shortDescription: "Soft floral soap bar for a calming bath and hand-care routine.",
+    description:
+      "A creamy handmade soap with rose and sandalwood-inspired notes, created for customers who want a softer premium bath experience.",
+    benefits: [
+      "Pleasant floral-woody aroma",
+      "Gentle everyday bar for hands and bath use",
+      "Adds a premium self-care feel to the shelf",
+    ],
+    usage: "Use on damp skin, rinse, and place on a draining soap tray after use.",
+    unitLabel: "100g bar",
+    price: 269,
+    compareAtPrice: 315,
+    stock: 68,
+    featured: false,
+    toneClass: "tone-turmeric",
+  },
+  {
+    id: "hill-fiber-natural-loofah",
+    slug: "hill-fiber-natural-loofah",
+    name: "Hill Fiber Natural Loofah",
+    botanicalName: "Dried loofah gourd fiber",
+    category: "Natural Loofahs",
+    shortDescription: "Natural plant-fiber loofah for bath exfoliation and soap pairing.",
+    description:
+      "A dried natural loofah chosen for everyday bath use, soap pairing, and a more grounded wellness-bath shelf. Easy to hang and quick to rinse.",
+    benefits: [
+      "Natural exfoliating bath accessory",
+      "Works well with handmade soaps and body oils",
+      "Lightweight and reusable with proper drying",
+    ],
+    usage: "Soak briefly, lather with soap, use gently, then rinse and hang dry.",
+    unitLabel: "Single loofah",
+    price: 199,
+    compareAtPrice: 239,
+    stock: 91,
+    featured: false,
+    toneClass: "tone-brahmi",
+  },
+  {
+    id: "tulsi-home-garden-seeds",
+    slug: "tulsi-home-garden-seeds",
+    name: "Tulsi Home Garden Seeds",
+    botanicalName: "Ocimum tenuiflorum seeds",
+    category: "Seeds",
+    shortDescription: "Sacred basil seeds for balcony gardens and wellness kitchen corners.",
+    description:
+      "Tulsi seeds packed for home growers who want fresh leaves for tea, puja spaces, and daily herb rituals. A natural fit for your Himachal-rooted story.",
+    benefits: [
+      "Ideal for balcony pots and kitchen gardens",
+      "Lets customers grow part of the ritual at home",
+      "Fresh herb connection builds brand trust and recall",
+    ],
+    usage: "Sow in moist soil with gentle sunlight and water lightly until sprouting.",
+    unitLabel: "25 seed packet",
+    price: 149,
+    compareAtPrice: 179,
+    stock: 120,
+    featured: true,
+    toneClass: "tone-tulsi",
+  },
+  {
+    id: "coriander-kitchen-seeds",
+    slug: "coriander-kitchen-seeds",
+    name: "Coriander Kitchen Seeds",
+    botanicalName: "Coriandrum sativum seeds",
+    category: "Seeds",
+    shortDescription: "Easy-grow coriander seeds for fresh garnish and home-grown flavor.",
+    description:
+      "Kitchen garden coriander seeds suited for everyday growers who want quick green freshness for chutneys, curries, and herbal cooking.",
+    benefits: [
+      "Fast-growing pantry-friendly seed option",
+      "Useful for home cooks and wellness gardeners",
+      "Supports the fresh-from-home story of the brand",
+    ],
+    usage: "Scatter in loose soil, cover lightly, water gently, and harvest leaves young.",
+    unitLabel: "30 seed packet",
+    price: 129,
+    compareAtPrice: 159,
+    stock: 138,
+    featured: false,
+    toneClass: "tone-moringa",
+  },
 ];
 
 export const herbCategories = getUniqueCategories(herbCatalog, starterCategories);
@@ -500,6 +636,22 @@ export function getHerbBySlug(slug: string) {
 
 export function getHerbById(id: string) {
   return herbCatalog.find((item) => item.id === id);
+}
+
+export function getProductImages(product: HerbProduct) {
+  const seen = new Set<string>();
+  const candidates = [...(product.images ?? []), product.imageUrl ?? ""];
+
+  return candidates
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .filter((item) => {
+      if (seen.has(item)) {
+        return false;
+      }
+      seen.add(item);
+      return true;
+    });
 }
 
 export function getUniqueCategories(products: HerbProduct[], additional: string[] = []) {

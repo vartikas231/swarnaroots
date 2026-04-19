@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { herbCatalog } from "@/app/data/herbs";
+import { getProductImages, herbCatalog } from "@/app/data/herbs";
 import { toAbsoluteUrl } from "@/app/lib/seo";
 
 interface ProductLayoutProps {
@@ -23,6 +23,8 @@ export async function generateMetadata({
     };
   }
 
+  const primaryImage = getProductImages(product)[0];
+
   return {
     title: product.name,
     description: product.shortDescription,
@@ -45,7 +47,7 @@ export async function generateMetadata({
       url: toAbsoluteUrl(`/shop/${product.slug}`),
       title: product.name,
       description: product.shortDescription,
-      images: product.imageUrl ? [{ url: product.imageUrl }] : undefined,
+      images: primaryImage ? [{ url: primaryImage }] : undefined,
     },
   };
 }

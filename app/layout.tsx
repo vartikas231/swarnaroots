@@ -6,8 +6,23 @@ import { siteConfig } from "@/app/config/site";
 import { getMetadataBase, toAbsoluteUrl } from "@/app/lib/seo";
 import { StoreHeader } from "@/app/components/store-header";
 import { Facebook, Instagram, Linkedin } from "lucide-react";
+import { Fraunces, Nunito } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-fraunces",
+  display: "swap",
+});
+
+const nunito = Nunito({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-nunito",
+  display: "swap",
+});
 
 function resolvePublicUrl(value: string | undefined, fallback: string) {
   const normalized = (value ?? "").trim();
@@ -60,7 +75,14 @@ export const metadata: Metadata = {
     description: siteConfig.brand.metaDescription,
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      {
+        url: siteConfig.brand.faviconUrl,
+        type: "image/svg+xml",
+      },
+    ],
+    shortcut: siteConfig.brand.faviconUrl,
+    apple: siteConfig.brand.logoUrl,
   },
 };
 
@@ -130,7 +152,7 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body className="antialiased">
+      <body className={`${nunito.variable} ${fraunces.variable} antialiased`}>
         <AuthSessionProvider>
           <StorefrontProvider>
             <CartProvider>

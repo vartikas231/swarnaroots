@@ -40,6 +40,12 @@ export async function GET(request: Request) {
     },
     orderBy: { createdAt: "desc" },
     take: limit,
+    include: {
+      shipmentEvents: {
+        orderBy: { eventAt: "desc" },
+        take: 5,
+      },
+    },
   });
 
   return NextResponse.json({

@@ -1,5 +1,6 @@
 import { ProductCard } from "@/app/components/product-card";
 import { siteConfig } from "@/app/config/site";
+import { getProductImages } from "@/app/data/herbs";
 import {
   getAllCategoryProfiles,
   getCategoryProfileBySlug,
@@ -38,7 +39,9 @@ export async function generateMetadata({
   const canonicalPath = `/shop/category/${profile.slug}`;
   const title = `${profile.name} Collection`;
   const products = getProductsForCategory(profile.slug);
-  const imageUrl = products.find((product) => product.imageUrl)?.imageUrl;
+  const imageUrl = products
+    .map((product) => getProductImages(product)[0])
+    .find(Boolean);
 
   return {
     title,

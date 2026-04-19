@@ -40,10 +40,20 @@ export interface BrandStyleTokens {
   buttonStyle: ButtonStyle;
 }
 
+export interface LayoutTokens {
+  shellMaxWidthPx: number;
+  shellSideMarginPx: number;
+  heroMinHeightVh: number;
+  cardRadiusPx: number;
+  sectionGapPx: number;
+}
+
 export interface SiteConfig {
   brand: {
     name: string;
     siteUrl: string;
+    logoUrl: string;
+    faviconUrl: string;
     tagline: string;
     heroTitle: string;
     heroDescription: string;
@@ -75,6 +85,7 @@ export interface SiteConfig {
   };
   theme: ThemeTokens;
   brandStyle: BrandStyleTokens;
+  layout: LayoutTokens;
   home: {
     highlights: Array<{ label: string; value: string }>;
     trustPoints: Array<{
@@ -113,6 +124,8 @@ export const siteConfig: SiteConfig = {
   brand: {
     name: "Swarna Roots",
     siteUrl: "https://www.swarnaroots.com",
+    logoUrl: "/swarna-roots-mark.svg",
+    faviconUrl: "/favicon.svg",
     tagline: "Modern Ayurveda Luxury",
     heroTitle: "Ancient herbal wisdom, crafted for healthier modern living.",
     heroDescription:
@@ -123,6 +136,7 @@ export const siteConfig: SiteConfig = {
   navigation: [
     { href: "/", label: "Home" },
     { href: "/shop", label: "Shop" },
+    { href: "/track-order", label: "Track Order" },
     { href: "/cart", label: "Cart" },
     { href: "/checkout", label: "Checkout" },
     { href: "/admin", label: "Admin" },
@@ -152,26 +166,33 @@ export const siteConfig: SiteConfig = {
     supportedMethods: ["UPI", "Credit Cards", "Debit Cards"],
   },
   theme: {
-    bg: "#edf3ea",
-    paper: "#f8fcf6",
-    paperRich: "#e6efe1",
-    ink: "#25372d",
-    inkSoft: "#506559",
-    outline: "#6d7f72",
-    line: "#c9d7c7",
-    gold: "#a78e5d",
-    goldSoft: "#d8c7a2",
-    sage: "#92a996",
-    clay: "#a97957",
-    jade: "#5f7f6c",
+    bg: "#fff8f4",
+    paper: "#fffdfb",
+    paperRich: "#ffe8eb",
+    ink: "#213127",
+    inkSoft: "#5f6f62",
+    outline: "#73946e",
+    line: "#d8d8c6",
+    gold: "#c79a34",
+    goldSoft: "#f5e2ad",
+    sage: "#98c28b",
+    clay: "#d68c6e",
+    jade: "#2f7a54",
   },
   brandStyle: {
-    iconTheme: "clinical-minimal",
+    iconTheme: "botanical-line",
     shapeTheme: "stone",
-    iconBackground: "none",
+    iconBackground: "soft",
     radiusScale: "soft",
-    iconStrokeWidth: 1.5,
-    buttonStyle: "outline-soft",
+    iconStrokeWidth: 2,
+    buttonStyle: "filled-soft",
+  },
+  layout: {
+    shellMaxWidthPx: 1680,
+    shellSideMarginPx: 48,
+    heroMinHeightVh: 56,
+    cardRadiusPx: 10,
+    sectionGapPx: 18,
   },
   home: {
     highlights: [

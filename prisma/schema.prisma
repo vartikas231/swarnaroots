@@ -317,6 +317,19 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum ShipmentStatus {
+  NOT_BOOKED
+  BOOKED
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED_ATTEMPT
+  RTO_INITIATED
+  RTO_DELIVERED
+  CANCELLED
+}
+
 model Refund {
   id               String       @id @default(cuid())
   orderId          String       @unique
@@ -342,27 +355,61 @@ enum RefundStatus {
 }
 
 model QuickOrder {
-  id            String        @id @default(cuid())
-  orderNumber   String        @unique
-  customerName  String
-  email         String
-  phone         String
-  city          String
-  state         String
-  pincode       String
-  addressLine   String        @db.Text
-  paymentMethod String
-  paymentStatus PaymentStatus @default(PENDING)
-  subtotal      Decimal       @db.Decimal(10, 2)
-  shippingCost  Decimal       @db.Decimal(10, 2)
-  total         Decimal       @db.Decimal(10, 2)
-  items         Json
-  emailStatus   String        @default("queued")
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                     String          @id @default(cuid())
+  orderNumber            String          @unique
+  customerName           String
+  email                  String
+  phone                  String
+  city                   String
+  state                  String
+  pincode                String
+  addressLine            String          @db.Text
+  paymentMethod          String
+  paymentStatus          PaymentStatus   @default(PENDING)
+  subtotal               Decimal         @db.Decimal(10, 2)
+  shippingCost           Decimal         @db.Decimal(10, 2)
+  total                  Decimal         @db.Decimal(10, 2)
+  items                  Json
+  emailStatus            String          @default("queued")
+  emailUpdatesEnabled    Boolean         @default(true)
+  whatsappUpdatesEnabled Boolean         @default(false)
+  shippingProvider       String?
+  shippingServiceName    String?
+  shipmentStatus         ShipmentStatus  @default(NOT_BOOKED)
+  trackingNumber         String?
+  trackingUrl            String?         @db.Text
+  shippingLabel          String?
+  shippingNotes          String?         @db.Text
+  shipmentBookedAt       DateTime?
+  shipmentUpdatedAt      DateTime?
+  shippedAt              DateTime?
+  deliveredAt            DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  shipmentEvents         QuickOrderShipmentEvent[]
 
   @@index([email])
   @@index([createdAt])
+  @@index([shipmentStatus])
+  @@index([shippingProvider])
+}
+
+model QuickOrderShipmentEvent {
+  id          String         @id @default(cuid())
+  quickOrderId String
+  status      ShipmentStatus
+  title       String
+  description String?        @db.Text
+  location    String?
+  source      String?
+  metadata    Json?
+  eventAt     DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+
+  quickOrder QuickOrder @relation(fields: [quickOrderId], references: [id], onDelete: Cascade)
+
+  @@index([quickOrderId, eventAt])
+  @@index([status])
 }
 
 // ============================================
@@ -557,6 +604,7 @@ model Notification {
 
 enum NotificationType {
   ORDER_CONFIRMATION
+  ORDER_STATUS_UPDATE
   ORDER_SHIPPED
   ORDER_DELIVERED
   REFUND_PROCESSED

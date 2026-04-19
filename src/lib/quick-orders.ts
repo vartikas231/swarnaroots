@@ -1,7 +1,10 @@
-import type { PaymentStatus } from "@prisma/client";
+import type { PaymentStatus, ShipmentStatus } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/src/lib/db";
-import { sendOrderConfirmationEmail } from "@/src/lib/email";
+import {
+  sendOrderConfirmationEmail,
+  sendOrderShipmentUpdateEmail,
+} from "@/src/lib/email";
 
 const orderItemsForEmailSchema = z.array(
   z.object({
@@ -26,8 +29,32 @@ export interface QuickOrderResponse {
   shippingCost: number;
   total: number;
   emailStatus: string;
+  emailUpdatesEnabled: boolean;
+  whatsappUpdatesEnabled: boolean;
+  shippingProvider: string | null;
+  shippingServiceName: string | null;
+  shipmentStatus: ShipmentStatus;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  shippingLabel: string | null;
+  shippingNotes: string | null;
+  shipmentBookedAt: string | null;
+  shipmentUpdatedAt: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  shipmentEvents: QuickOrderShipmentEventResponse[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface QuickOrderShipmentEventResponse {
+  status: ShipmentStatus;
+  title: string;
+  description: string | null;
+  location: string | null;
+  source: string | null;
+  eventAt: string;
+  createdAt: string;
 }
 
 function asNumber(value: unknown) {
@@ -35,6 +62,55 @@ function asNumber(value: unknown) {
     return value;
   }
   return Number(value);
+}
+
+function asIsoStringOrNull(value: Date | null | undefined) {
+  return value ? value.toISOString() : null;
+}
+
+function toShipmentStatusLabel(status: ShipmentStatus) {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildShipmentEventTitle(status: ShipmentStatus) {
+  switch (status) {
+    case "BOOKED":
+      return "Shipment booked";
+    case "PICKED_UP":
+      return "Shipment picked up";
+    case "IN_TRANSIT":
+      return "Shipment in transit";
+    case "OUT_FOR_DELIVERY":
+      return "Out for delivery";
+    case "DELIVERED":
+      return "Delivered";
+    case "FAILED_ATTEMPT":
+      return "Delivery attempt failed";
+    case "RTO_INITIATED":
+      return "Return initiated";
+    case "RTO_DELIVERED":
+      return "Return delivered";
+    case "CANCELLED":
+      return "Shipment cancelled";
+    default:
+      return "Shipment update";
+  }
+}
+
+function toNotificationType(status: ShipmentStatus) {
+  if (status === "DELIVERED") {
+    return "ORDER_DELIVERED" as const;
+  }
+
+  if (["BOOKED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(status)) {
+    return "ORDER_SHIPPED" as const;
+  }
+
+  return "ORDER_STATUS_UPDATE" as const;
 }
 
 export function toQuickOrderResponse(order: {
@@ -52,6 +128,28 @@ export function toQuickOrderResponse(order: {
   shippingCost: unknown;
   total: unknown;
   emailStatus: string;
+  emailUpdatesEnabled?: boolean;
+  whatsappUpdatesEnabled?: boolean;
+  shippingProvider?: string | null;
+  shippingServiceName?: string | null;
+  shipmentStatus?: ShipmentStatus;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  shippingLabel?: string | null;
+  shippingNotes?: string | null;
+  shipmentBookedAt?: Date | null;
+  shipmentUpdatedAt?: Date | null;
+  shippedAt?: Date | null;
+  deliveredAt?: Date | null;
+  shipmentEvents?: Array<{
+    status: ShipmentStatus;
+    title: string;
+    description: string | null;
+    location: string | null;
+    source: string | null;
+    eventAt: Date;
+    createdAt: Date;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }): QuickOrderResponse {
@@ -70,6 +168,28 @@ export function toQuickOrderResponse(order: {
     shippingCost: asNumber(order.shippingCost),
     total: asNumber(order.total),
     emailStatus: order.emailStatus,
+    emailUpdatesEnabled: order.emailUpdatesEnabled ?? true,
+    whatsappUpdatesEnabled: order.whatsappUpdatesEnabled ?? false,
+    shippingProvider: order.shippingProvider ?? null,
+    shippingServiceName: order.shippingServiceName ?? null,
+    shipmentStatus: order.shipmentStatus ?? "NOT_BOOKED",
+    trackingNumber: order.trackingNumber ?? null,
+    trackingUrl: order.trackingUrl ?? null,
+    shippingLabel: order.shippingLabel ?? null,
+    shippingNotes: order.shippingNotes ?? null,
+    shipmentBookedAt: asIsoStringOrNull(order.shipmentBookedAt),
+    shipmentUpdatedAt: asIsoStringOrNull(order.shipmentUpdatedAt),
+    shippedAt: asIsoStringOrNull(order.shippedAt),
+    deliveredAt: asIsoStringOrNull(order.deliveredAt),
+    shipmentEvents: (order.shipmentEvents ?? []).map((event) => ({
+      status: event.status,
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      source: event.source,
+      eventAt: event.eventAt.toISOString(),
+      createdAt: event.createdAt.toISOString(),
+    })),
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
   };
@@ -168,6 +288,177 @@ export async function applyQuickOrderPaymentStatus(input: {
 
   const updated = await db.quickOrder.findUnique({
     where: { orderNumber: order.orderNumber },
+  });
+
+  return updated ?? order;
+}
+
+export async function applyQuickOrderShippingUpdate(input: {
+  orderNumber: string;
+  shippingProvider?: string;
+  shippingServiceName?: string;
+  shipmentStatus?: ShipmentStatus;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  shippingLabel?: string;
+  shippingNotes?: string;
+  eventTitle?: string;
+  eventDescription?: string;
+  eventLocation?: string;
+  eventAt?: string;
+  source?: string;
+}) {
+  const order = await db.quickOrder.findUnique({
+    where: { orderNumber: input.orderNumber },
+  });
+
+  if (!order) {
+    return null;
+  }
+
+  const hasShippingMutation =
+    input.shippingProvider !== undefined ||
+    input.shippingServiceName !== undefined ||
+    input.shipmentStatus !== undefined ||
+    input.trackingNumber !== undefined ||
+    input.trackingUrl !== undefined ||
+    input.shippingLabel !== undefined ||
+    input.shippingNotes !== undefined ||
+    input.eventTitle !== undefined ||
+    input.eventDescription !== undefined ||
+    input.eventLocation !== undefined ||
+    input.eventAt !== undefined;
+
+  if (!hasShippingMutation) {
+    return db.quickOrder.findUnique({
+      where: { orderNumber: order.orderNumber },
+      include: {
+        shipmentEvents: {
+          orderBy: { eventAt: "desc" },
+          take: 20,
+        },
+      },
+    });
+  }
+
+  const now = new Date();
+  const eventAt = input.eventAt ? new Date(input.eventAt) : now;
+  const safeEventAt = Number.isNaN(eventAt.getTime()) ? now : eventAt;
+  const nextShipmentStatus = input.shipmentStatus ?? order.shipmentStatus;
+  const shipmentStatusChanged = nextShipmentStatus !== order.shipmentStatus;
+  const shippingProvider =
+    input.shippingProvider !== undefined
+      ? input.shippingProvider.trim() || null
+      : order.shippingProvider;
+  const shippingServiceName =
+    input.shippingServiceName !== undefined
+      ? input.shippingServiceName.trim() || null
+      : order.shippingServiceName;
+  const trackingNumber =
+    input.trackingNumber !== undefined
+      ? input.trackingNumber.trim() || null
+      : order.trackingNumber;
+  const trackingUrl =
+    input.trackingUrl !== undefined
+      ? input.trackingUrl.trim() || null
+      : order.trackingUrl;
+  const shippingLabel =
+    input.shippingLabel !== undefined
+      ? input.shippingLabel.trim() || null
+      : order.shippingLabel;
+  const shippingNotes =
+    input.shippingNotes !== undefined
+      ? input.shippingNotes.trim() || null
+      : order.shippingNotes;
+
+  const nextShipmentBookedAt =
+    nextShipmentStatus === "BOOKED" && !order.shipmentBookedAt
+      ? safeEventAt
+      : order.shipmentBookedAt;
+  const nextShippedAt =
+    ["PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"].includes(nextShipmentStatus) &&
+    !order.shippedAt
+      ? safeEventAt
+      : order.shippedAt;
+  const nextDeliveredAt =
+    nextShipmentStatus === "DELIVERED" ? safeEventAt : order.deliveredAt;
+
+  await db.quickOrder.update({
+    where: { orderNumber: order.orderNumber },
+    data: {
+      shippingProvider,
+      shippingServiceName,
+      shipmentStatus: nextShipmentStatus,
+      trackingNumber,
+      trackingUrl,
+      shippingLabel,
+      shippingNotes,
+      shipmentBookedAt: nextShipmentBookedAt,
+      shipmentUpdatedAt: safeEventAt,
+      shippedAt: nextShippedAt,
+      deliveredAt: nextDeliveredAt,
+    },
+  });
+
+  const shouldCreateEvent =
+    shipmentStatusChanged ||
+    Boolean(input.eventTitle?.trim()) ||
+    Boolean(input.eventDescription?.trim()) ||
+    Boolean(input.eventLocation?.trim());
+
+  if (shouldCreateEvent) {
+    await db.quickOrderShipmentEvent.create({
+      data: {
+        quickOrderId: order.id,
+        status: nextShipmentStatus,
+        title: input.eventTitle?.trim() || buildShipmentEventTitle(nextShipmentStatus),
+        description: input.eventDescription?.trim() || null,
+        location: input.eventLocation?.trim() || null,
+        source: input.source?.trim() || "admin",
+        eventAt: safeEventAt,
+        metadata: {
+          shippingProvider,
+          shippingServiceName,
+          trackingNumber,
+          trackingUrl,
+        },
+      },
+    });
+  }
+
+  if (shipmentStatusChanged && order.emailUpdatesEnabled) {
+    const emailResult = await sendOrderShipmentUpdateEmail({
+      to: order.email,
+      customerName: order.customerName,
+      orderNumber: order.orderNumber,
+      shipmentStatusLabel: toShipmentStatusLabel(nextShipmentStatus),
+      shippingProvider,
+      shippingServiceName,
+      trackingNumber,
+      trackingUrl,
+    });
+
+    await db.notification.create({
+      data: {
+        type: toNotificationType(nextShipmentStatus),
+        channel: "email",
+        recipient: order.email,
+        subject: `Order Update: ${order.orderNumber}`,
+        body: `${order.orderNumber} is now ${toShipmentStatusLabel(nextShipmentStatus)}.`,
+        status: emailResult.sent ? "sent" : "pending",
+        sentAt: emailResult.sent ? new Date() : null,
+      },
+    });
+  }
+
+  const updated = await db.quickOrder.findUnique({
+    where: { orderNumber: order.orderNumber },
+    include: {
+      shipmentEvents: {
+        orderBy: { eventAt: "desc" },
+        take: 20,
+      },
+    },
   });
 
   return updated ?? order;

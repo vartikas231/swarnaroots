@@ -5,7 +5,13 @@ import {
   type HerbProduct,
 } from "@/app/data/herbs";
 
-const ADDITIONAL_SEO_CATEGORIES = ["Wellness Candles", "Himachal Teas"];
+const ADDITIONAL_SEO_CATEGORIES = [
+  "Wellness Candles",
+  "Himachal Teas",
+  "Botanical Soaps",
+  "Natural Loofahs",
+  "Seeds",
+];
 
 interface CategoryDetail {
   tagline: string;
@@ -152,6 +158,48 @@ const CATEGORY_DETAILS: Record<string, CategoryDetail> = {
       "wellness candles india",
       "natural aroma candles",
       "botanical home fragrance",
+    ],
+  },
+  "Botanical Soaps": {
+    tagline: "Bath rituals with botanical charm",
+    description:
+      "Explore handmade botanical soaps crafted for premium bath shelves, daily cleansing, and a more natural self-care routine.",
+    originStory:
+      "This collection brings together herb-inspired cleansing bars that feel artisanal, grounded, and easy to trust.",
+    marketFocus: ["India premium bath care", "US botanical body care"],
+    keywords: [
+      "botanical soaps india",
+      "handmade herbal soap",
+      "natural bathing bar",
+      "ayurvedic soap online",
+    ],
+  },
+  "Natural Loofahs": {
+    tagline: "Natural bath accessories",
+    description:
+      "Plant-fiber loofahs and bath accessories designed to pair with handmade soaps and elevate everyday wellness routines.",
+    originStory:
+      "Loofah products support the brand's earthy, low-plastic, ritual-led bath story without feeling synthetic or mass-market.",
+    marketFocus: ["India natural bath care", "US eco bath routine"],
+    keywords: [
+      "natural loofah india",
+      "plant fiber loofah",
+      "bath loofah online",
+      "natural exfoliating sponge",
+    ],
+  },
+  Seeds: {
+    tagline: "Grow-your-own wellness",
+    description:
+      "Seed packets for kitchen gardens, balcony herb corners, and customers who want to grow part of the Swarna Roots story at home.",
+    originStory:
+      "This collection reflects the farming roots of the brand and builds a stronger connection between wellness, soil, and daily life.",
+    marketFocus: ["India home gardening", "US grow-your-own herb buyers"],
+    keywords: [
+      "herb seeds india",
+      "tulsi seeds online",
+      "kitchen garden seeds",
+      "wellness garden seeds",
     ],
   },
 };

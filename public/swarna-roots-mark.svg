@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Swarna Roots logo mark</title>
+  <desc id="desc">A small readable SR monogram with a leaf accent in green and gold.</desc>
+  <defs>
+    <linearGradient id="bg" x1="20" y1="18" x2="140" y2="142" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff8de"/>
+      <stop offset="0.55" stop-color="#f1d68a"/>
+      <stop offset="1" stop-color="#e0b24d"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="94" y1="30" x2="128" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#93c67e"/>
+      <stop offset="1" stop-color="#2f7a54"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="144" height="144" rx="28" fill="#fffdf7"/>
+  <rect x="12" y="12" width="136" height="136" rx="24" fill="url(#bg)" stroke="#c89632" stroke-width="4"/>
+  <path d="M97 31c18 2 31 15 32 32-18-2-31-15-32-32Z" fill="url(#leaf)"/>
+  <path d="M112 38c-3 6-6 12-11 18" fill="none" stroke="#eef9ea" stroke-width="3" stroke-linecap="round"/>
+  <path d="M42 109V52h28c18 0 28 8 28 22 0 11-6 18-17 21l20 14H74L57 96v13H42Zm15-25h12c9 0 14-3 14-10s-5-10-14-10H57v20Z" fill="#203529"/>
+  <path d="M103 52h15v41h26v16h-41V52Z" fill="#203529"/>
+</svg>

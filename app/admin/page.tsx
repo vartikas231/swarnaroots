@@ -8,6 +8,7 @@ import type {
   IconBackgroundMode,
   IconStrokeWidth,
   IconTheme,
+  LayoutTokens,
   RadiusScale,
   ShapeTheme,
   ThemeTokens,
@@ -40,6 +41,62 @@ const themeFields: Array<{ key: keyof ThemeTokens; label: string }> = [
   { key: "sage", label: "Sage" },
   { key: "clay", label: "Clay" },
   { key: "jade", label: "Jade" },
+];
+
+const layoutFields: Array<{
+  key: keyof LayoutTokens;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  helper: string;
+}> = [
+  {
+    key: "shellMaxWidthPx",
+    label: "Website max width",
+    min: 1100,
+    max: 1920,
+    step: 20,
+    unit: "px",
+    helper: "Higher means the website uses more screen width.",
+  },
+  {
+    key: "shellSideMarginPx",
+    label: "Side margin",
+    min: 12,
+    max: 140,
+    step: 4,
+    unit: "px",
+    helper: "Higher means more breathing room on both sides.",
+  },
+  {
+    key: "heroMinHeightVh",
+    label: "Hero banner height",
+    min: 42,
+    max: 78,
+    step: 1,
+    unit: "vh",
+    helper: "Controls how much first-screen height the banner uses.",
+  },
+  {
+    key: "cardRadiusPx",
+    label: "Box corner radius",
+    min: 2,
+    max: 24,
+    step: 1,
+    unit: "px",
+    helper: "Lower gives straighter, more normal ecommerce boxes.",
+  },
+  {
+    key: "sectionGapPx",
+    label: "Section gap",
+    min: 10,
+    max: 40,
+    step: 1,
+    unit: "px",
+    helper: "Controls vertical spacing between homepage/shop sections.",
+  },
 ];
 
 const iconThemeOptions: Array<{ value: IconTheme; label: string }> = [
@@ -176,6 +233,17 @@ const brandPresets: BrandPreset[] = [
 
 type AdminRole = "ADMIN" | "SUPER_ADMIN";
 type OrderPaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+type ShipmentStatus =
+  | "NOT_BOOKED"
+  | "BOOKED"
+  | "PICKED_UP"
+  | "IN_TRANSIT"
+  | "OUT_FOR_DELIVERY"
+  | "DELIVERED"
+  | "FAILED_ATTEMPT"
+  | "RTO_INITIATED"
+  | "RTO_DELIVERED"
+  | "CANCELLED";
 
 interface AdminUser {
   id: string;
@@ -200,8 +268,80 @@ interface AdminOrder {
   shippingCost: number;
   total: number;
   emailStatus: string;
+  shippingProvider: string | null;
+  shippingServiceName: string | null;
+  shipmentStatus: ShipmentStatus;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  shipmentUpdatedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface AdminOrderDraft {
+  paymentStatus: OrderPaymentStatus;
+  shippingProvider: string;
+  shippingServiceName: string;
+  shipmentStatus: ShipmentStatus;
+  trackingNumber: string;
+  trackingUrl: string;
+}
+
+type OrderFilterState = {
+  query: string;
+  paymentStatus: "ALL" | OrderPaymentStatus;
+  city: string;
+  createdFrom: string;
+  createdTo: string;
+};
+
+const emptyOrderFilters: OrderFilterState = {
+  query: "",
+  paymentStatus: "ALL",
+  city: "",
+  createdFrom: "",
+  createdTo: "",
+};
+
+function parseImageUrlList(value: string) {
+  return value
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function stringifyProductImages(images: string[] | undefined, imageUrl?: string) {
+  const combined = [...(images ?? []), imageUrl ?? ""]
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return Array.from(new Set(combined)).join("\n");
+}
+
+function buildOrderDraft(order: AdminOrder): AdminOrderDraft {
+  return {
+    paymentStatus: order.paymentStatus,
+    shippingProvider: order.shippingProvider ?? "",
+    shippingServiceName: order.shippingServiceName ?? "",
+    shipmentStatus: order.shipmentStatus,
+    trackingNumber: order.trackingNumber ?? "",
+    trackingUrl: order.trackingUrl ?? "",
+  };
+}
+
+function isOrderDraftDirty(order: AdminOrder, draft: AdminOrderDraft | undefined) {
+  if (!draft) {
+    return false;
+  }
+
+  return (
+    draft.paymentStatus !== order.paymentStatus ||
+    draft.shippingProvider !== (order.shippingProvider ?? "") ||
+    draft.shippingServiceName !== (order.shippingServiceName ?? "") ||
+    draft.shipmentStatus !== order.shipmentStatus ||
+    draft.trackingNumber !== (order.trackingNumber ?? "") ||
+    draft.trackingUrl !== (order.trackingUrl ?? "")
+  );
 }
 
 export default function AdminPage() {
@@ -212,9 +352,12 @@ export default function AdminPage() {
     resetTheme,
     updateBrandStyle,
     resetBrandStyle,
+    updateLayout,
+    resetLayout,
     addCategory,
     removeCategory,
     addProduct,
+    updateProductImages,
     removeProduct,
     addStory,
     removeStory,
@@ -226,7 +369,7 @@ export default function AdminPage() {
   const [productForm, setProductForm] = useState({
     name: "",
     category: state.categories[0] ?? "Herbal Powders",
-    imageUrl: "",
+    imageUrls: "",
     price: "299",
     stock: "20",
     shortDescription: "",
@@ -234,6 +377,7 @@ export default function AdminPage() {
     unitLabel: "",
     toneClass: toneOptions[0],
   });
+  const [productImageDrafts, setProductImageDrafts] = useState<Record<string, string>>({});
   const [storyForm, setStoryForm] = useState({
     name: "",
     city: "",
@@ -259,9 +403,9 @@ export default function AdminPage() {
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [updatingOrderNumber, setUpdatingOrderNumber] = useState<string | null>(null);
-  const [orderStatusDrafts, setOrderStatusDrafts] = useState<Record<string, OrderPaymentStatus>>(
-    {},
-  );
+  const [orderDrafts, setOrderDrafts] = useState<Record<string, AdminOrderDraft>>({});
+  const [orderFilters, setOrderFilters] = useState<OrderFilterState>(emptyOrderFilters);
+  const [activeOrderFilters, setActiveOrderFilters] = useState<OrderFilterState>(emptyOrderFilters);
   const categoryStats = useMemo(() => {
     return state.categories.map((category) => ({
       name: category,
@@ -272,6 +416,61 @@ export default function AdminPage() {
     ? productForm.category
     : state.categories[0] ?? "Herbal Powders";
   const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
+  const orderCityOptions = useMemo(() => {
+    return Array.from(new Set(orders.map((order) => order.city.trim()).filter(Boolean))).sort(
+      (a, b) => a.localeCompare(b),
+    );
+  }, [orders]);
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      if (activeOrderFilters.paymentStatus !== "ALL") {
+        if (order.paymentStatus !== activeOrderFilters.paymentStatus) {
+          return false;
+        }
+      }
+
+      if (activeOrderFilters.city) {
+        if (order.city.trim().toLowerCase() !== activeOrderFilters.city.trim().toLowerCase()) {
+          return false;
+        }
+      }
+
+      if (activeOrderFilters.query) {
+        const query = activeOrderFilters.query.trim().toLowerCase();
+        const haystack = [
+          order.orderNumber,
+          order.customerName,
+          order.email,
+          order.phone,
+          order.paymentMethod,
+          order.shippingProvider ?? "",
+          order.shippingServiceName ?? "",
+          order.trackingNumber ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(query)) {
+          return false;
+        }
+      }
+
+      const createdAtTs = new Date(order.createdAt).getTime();
+      if (activeOrderFilters.createdFrom) {
+        const startTs = new Date(`${activeOrderFilters.createdFrom}T00:00:00`).getTime();
+        if (!Number.isNaN(startTs) && createdAtTs < startTs) {
+          return false;
+        }
+      }
+      if (activeOrderFilters.createdTo) {
+        const endTs = new Date(`${activeOrderFilters.createdTo}T23:59:59`).getTime();
+        if (!Number.isNaN(endTs) && createdAtTs > endTs) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [orders, activeOrderFilters]);
 
   const loadAdminUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -324,9 +523,9 @@ export default function AdminPage() {
 
       const nextOrders = payload.orders ?? [];
       setOrders(nextOrders);
-      setOrderStatusDrafts(
-        nextOrders.reduce<Record<string, OrderPaymentStatus>>((acc, order) => {
-          acc[order.orderNumber] = order.paymentStatus;
+      setOrderDrafts(
+        nextOrders.reduce<Record<string, AdminOrderDraft>>((acc, order) => {
+          acc[order.orderNumber] = buildOrderDraft(order);
           return acc;
         }, {}),
       );
@@ -347,6 +546,38 @@ export default function AdminPage() {
       flipkartUrl: state.marketplaces.flipkartUrl,
     });
   }, [state.marketplaces.amazonUrl, state.marketplaces.flipkartUrl]);
+
+  useEffect(() => {
+    setProductImageDrafts((prev) => {
+      const next: Record<string, string> = {};
+      for (const product of state.products) {
+        next[product.id] =
+          prev[product.id] ?? stringifyProductImages(product.images, product.imageUrl);
+      }
+      return next;
+    });
+  }, [state.products]);
+
+  const reorderProductImageDraft = (productId: string, index: number, direction: -1 | 1) => {
+    setProductImageDrafts((prev) => {
+      const current = parseImageUrlList(prev[productId] ?? "");
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return prev;
+      }
+      const next = [...current];
+      const [moved] = next.splice(index, 1);
+      next.splice(targetIndex, 0, moved);
+      return {
+        ...prev,
+        [productId]: next.join("\n"),
+      };
+    });
+  };
+
+  const saveProductImages = (productId: string) => {
+    updateProductImages(productId, parseImageUrlList(productImageDrafts[productId] ?? ""));
+  };
 
   const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -396,9 +627,9 @@ export default function AdminPage() {
     await loadAdminUsers();
   };
 
-  const handleSaveOrderStatus = async (order: AdminOrder) => {
-    const nextStatus = orderStatusDrafts[order.orderNumber] ?? order.paymentStatus;
-    if (nextStatus === order.paymentStatus) {
+  const handleSaveOrder = async (order: AdminOrder) => {
+    const draft = orderDrafts[order.orderNumber] ?? buildOrderDraft(order);
+    if (!isOrderDraftDirty(order, draft)) {
       return;
     }
 
@@ -411,8 +642,26 @@ export default function AdminPage() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        paymentStatus: nextStatus,
+        paymentStatus: draft.paymentStatus,
         paymentMethod: order.paymentMethod,
+        shippingProvider:
+          draft.shippingProvider !== (order.shippingProvider ?? "")
+            ? draft.shippingProvider || undefined
+            : undefined,
+        shippingServiceName:
+          draft.shippingServiceName !== (order.shippingServiceName ?? "")
+            ? draft.shippingServiceName || undefined
+            : undefined,
+        shipmentStatus:
+          draft.shipmentStatus !== order.shipmentStatus ? draft.shipmentStatus : undefined,
+        trackingNumber:
+          draft.trackingNumber !== (order.trackingNumber ?? "")
+            ? draft.trackingNumber || undefined
+            : undefined,
+        trackingUrl:
+          draft.trackingUrl !== (order.trackingUrl ?? "")
+            ? draft.trackingUrl || undefined
+            : undefined,
       }),
     });
 
@@ -431,9 +680,9 @@ export default function AdminPage() {
     setOrders((prev) =>
       prev.map((item) => (item.orderNumber === payload.order?.orderNumber ? payload.order : item)),
     );
-    setOrderStatusDrafts((prev) => ({
+    setOrderDrafts((prev) => ({
       ...prev,
-      [order.orderNumber]: payload.order?.paymentStatus ?? nextStatus,
+      [order.orderNumber]: payload.order ? buildOrderDraft(payload.order) : draft,
     }));
   };
 
@@ -449,7 +698,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="page-stack">
+    <div className="page-stack admin-viewport">
       <section className="section-card reveal reveal-delay-1">
         <div className="section-head">
           <div>
@@ -591,6 +840,45 @@ export default function AdminPage() {
                   updateTheme({ [field.key]: event.target.value } as Partial<ThemeTokens>)
                 }
               />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="section-card admin-section reveal reveal-delay-2">
+        <div className="section-head">
+          <h2>Layout spacing controls</h2>
+          <button type="button" className="btn btn-outline" onClick={resetLayout}>
+            Reset layout
+          </button>
+        </div>
+        <p className="admin-helper">
+          Tune website width, side margin, hero height, box corners, and section spacing live.
+          This lets you test proper margins without editing code every time.
+        </p>
+        <div className="layout-control-grid">
+          {layoutFields.map((field) => (
+            <label key={field.key} className="layout-control">
+              <span>
+                {field.label}
+                <strong>
+                  {state.layout[field.key]}
+                  {field.unit}
+                </strong>
+              </span>
+              <input
+                type="range"
+                min={field.min}
+                max={field.max}
+                step={field.step}
+                value={state.layout[field.key]}
+                onChange={(event) =>
+                  updateLayout({
+                    [field.key]: Number(event.target.value),
+                  } as Partial<LayoutTokens>)
+                }
+              />
+              <small>{field.helper}</small>
             </label>
           ))}
         </div>
@@ -866,7 +1154,7 @@ export default function AdminPage() {
             addProduct({
               name: productForm.name,
               category: safeCategory,
-              imageUrl: productForm.imageUrl,
+              imageUrls: parseImageUrlList(productForm.imageUrls),
               price: Number(productForm.price),
               stock: Number(productForm.stock),
               shortDescription: productForm.shortDescription,
@@ -877,7 +1165,7 @@ export default function AdminPage() {
             setProductForm({
               name: "",
               category: state.categories[0] ?? "Herbal Powders",
-              imageUrl: "",
+              imageUrls: "",
               price: "299",
               stock: "20",
               shortDescription: "",
@@ -909,13 +1197,17 @@ export default function AdminPage() {
             </select>
           </label>
           <label className="field-span-2">
-            Product image URL (Cloudinary)
-            <input
-              type="url"
-              placeholder="https://res.cloudinary.com/.../image/upload/..."
-              value={productForm.imageUrl}
+            Product image URLs (up to 5)
+            <textarea
+              rows={4}
+              placeholder={[
+                "https://ik.imagekit.io/your-store/products/product-1.jpg",
+                "https://ik.imagekit.io/your-store/products/product-2.jpg",
+                "https://ik.imagekit.io/your-store/products/product-3.jpg",
+              ].join("\n")}
+              value={productForm.imageUrls}
               onChange={(event) =>
-                setProductForm((prev) => ({ ...prev, imageUrl: event.target.value }))
+                setProductForm((prev) => ({ ...prev, imageUrls: event.target.value }))
               }
             />
           </label>
@@ -989,7 +1281,7 @@ export default function AdminPage() {
               <tr>
                 <th>Name</th>
                 <th>Category</th>
-                <th>Image</th>
+                <th>Images & order</th>
                 <th>Price</th>
                 <th>Stock</th>
                 <th />
@@ -1000,7 +1292,73 @@ export default function AdminPage() {
                 <tr key={product.id}>
                   <td>{product.name}</td>
                   <td>{product.category}</td>
-                  <td>{product.imageUrl ? "Yes" : "No"}</td>
+                  <td>
+                    <div className="admin-product-images">
+                      <textarea
+                        rows={4}
+                        placeholder="Paste one URL, comma-separated URLs, or one URL per line"
+                        value={
+                          productImageDrafts[product.id] ??
+                          stringifyProductImages(product.images, product.imageUrl)
+                        }
+                        onChange={(event) =>
+                          setProductImageDrafts((prev) => ({
+                            ...prev,
+                            [product.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      <div className="admin-image-order-list">
+                        {parseImageUrlList(productImageDrafts[product.id] ?? "").map(
+                          (imageUrl, index, imageList) => (
+                            <div key={`${product.id}-${imageUrl}`} className="admin-image-order-row">
+                              <span>
+                                {index === 0 ? "Main" : `Image ${index + 1}`}
+                              </span>
+                              <code>{imageUrl}</code>
+                              <button
+                                type="button"
+                                className="text-btn"
+                                disabled={index === 0}
+                                onClick={() => reorderProductImageDraft(product.id, index, -1)}
+                              >
+                                Up
+                              </button>
+                              <button
+                                type="button"
+                                className="text-btn"
+                                disabled={index === imageList.length - 1}
+                                onClick={() => reorderProductImageDraft(product.id, index, 1)}
+                              >
+                                Down
+                              </button>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                      <div className="admin-product-image-actions">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => saveProductImages(product.id)}
+                        >
+                          Save images
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() =>
+                            setProductImageDrafts((prev) => ({
+                              ...prev,
+                              [product.id]: stringifyProductImages(product.images, product.imageUrl),
+                            }))
+                          }
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  </td>
                   <td>{formatPrice(product.price)}</td>
                   <td>{product.stock}</td>
                   <td>
@@ -1085,16 +1443,118 @@ export default function AdminPage() {
             Refresh
           </button>
         </div>
+        <form
+          className="admin-filter-shell"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setActiveOrderFilters(orderFilters);
+          }}
+        >
+          <label className="admin-filter-field">
+            Search order/customer
+            <input
+              type="text"
+              placeholder="Order ID, name, phone, email"
+              value={orderFilters.query}
+              onChange={(event) =>
+                setOrderFilters((prev) => ({
+                  ...prev,
+                  query: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="admin-filter-field">
+            Payment status
+            <select
+              value={orderFilters.paymentStatus}
+              onChange={(event) =>
+                setOrderFilters((prev) => ({
+                  ...prev,
+                  paymentStatus: event.target.value as OrderFilterState["paymentStatus"],
+                }))
+              }
+            >
+              <option value="ALL">All</option>
+              <option value="PENDING">PENDING</option>
+              <option value="PAID">PAID</option>
+              <option value="FAILED">FAILED</option>
+              <option value="REFUNDED">REFUNDED</option>
+            </select>
+          </label>
+          <label className="admin-filter-field">
+            City
+            <select
+              value={orderFilters.city}
+              onChange={(event) =>
+                setOrderFilters((prev) => ({
+                  ...prev,
+                  city: event.target.value,
+                }))
+              }
+            >
+              <option value="">All cities</option>
+              {orderCityOptions.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-filter-field">
+            From date
+            <input
+              type="date"
+              value={orderFilters.createdFrom}
+              onChange={(event) =>
+                setOrderFilters((prev) => ({
+                  ...prev,
+                  createdFrom: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="admin-filter-field">
+            To date
+            <input
+              type="date"
+              value={orderFilters.createdTo}
+              onChange={(event) =>
+                setOrderFilters((prev) => ({
+                  ...prev,
+                  createdTo: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <button type="submit" className="btn btn-primary admin-filter-action">
+            Apply filter
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline admin-filter-action"
+            onClick={() => {
+              setOrderFilters(emptyOrderFilters);
+              setActiveOrderFilters(emptyOrderFilters);
+            }}
+          >
+            Reset
+          </button>
+        </form>
+        <p className="admin-helper">
+          Showing {filteredOrders.length} of {orders.length} orders.
+        </p>
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table className="admin-table admin-table--pastel">
             <thead>
               <tr>
                 <th>Date</th>
                 <th>Order</th>
                 <th>Customer</th>
                 <th>Location</th>
-                <th>Method</th>
-                <th>Payment status</th>
+                <th>Payment</th>
+                <th>Shipping</th>
+                <th>Tracking</th>
                 <th>Email</th>
                 <th>Amount</th>
                 <th />
@@ -1103,16 +1563,26 @@ export default function AdminPage() {
             <tbody>
               {ordersLoading ? (
                 <tr>
-                  <td colSpan={9}>Loading orders...</td>
+                  <td colSpan={10}>Loading orders...</td>
                 </tr>
-              ) : orders.length === 0 ? (
+              ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={9}>No orders yet. Place test orders from checkout.</td>
+                  <td colSpan={10}>No matching orders for this filter.</td>
                 </tr>
               ) : (
-                orders.map((order) => (
+                filteredOrders.map((order) => (
                   <tr key={order.orderNumber}>
-                    <td>{new Date(order.createdAt).toLocaleString()}</td>
+                    <td>
+                      <strong>{new Date(order.createdAt).toLocaleString()}</strong>
+                      {order.shipmentUpdatedAt ? (
+                        <>
+                          <br />
+                          <span className="admin-inline-note">
+                            Ship: {new Date(order.shipmentUpdatedAt).toLocaleString()}
+                          </span>
+                        </>
+                      ) : null}
+                    </td>
                     <td>{order.orderNumber}</td>
                     <td>
                       <strong>{order.customerName}</strong>
@@ -1122,14 +1592,20 @@ export default function AdminPage() {
                     <td>
                       {order.city}, {order.state}
                     </td>
-                    <td>{order.paymentMethod}</td>
                     <td>
+                      <strong>{order.paymentMethod}</strong>
+                      <br />
                       <select
-                        value={orderStatusDrafts[order.orderNumber] ?? order.paymentStatus}
+                        value={
+                          orderDrafts[order.orderNumber]?.paymentStatus ?? order.paymentStatus
+                        }
                         onChange={(event) =>
-                          setOrderStatusDrafts((prev) => ({
+                          setOrderDrafts((prev) => ({
                             ...prev,
-                            [order.orderNumber]: event.target.value as OrderPaymentStatus,
+                            [order.orderNumber]: {
+                              ...(prev[order.orderNumber] ?? buildOrderDraft(order)),
+                              paymentStatus: event.target.value as OrderPaymentStatus,
+                            },
                           }))
                         }
                       >
@@ -1139,7 +1615,104 @@ export default function AdminPage() {
                         <option value="REFUNDED">REFUNDED</option>
                       </select>
                     </td>
-                    <td>{order.emailStatus}</td>
+                    <td>
+                      <input
+                        className="admin-order-inline-input"
+                        placeholder="Provider e.g. Shiprocket"
+                        value={orderDrafts[order.orderNumber]?.shippingProvider ?? ""}
+                        onChange={(event) =>
+                          setOrderDrafts((prev) => ({
+                            ...prev,
+                            [order.orderNumber]: {
+                              ...(prev[order.orderNumber] ?? buildOrderDraft(order)),
+                              shippingProvider: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <input
+                        className="admin-order-inline-input"
+                        placeholder="Service name"
+                        value={orderDrafts[order.orderNumber]?.shippingServiceName ?? ""}
+                        onChange={(event) =>
+                          setOrderDrafts((prev) => ({
+                            ...prev,
+                            [order.orderNumber]: {
+                              ...(prev[order.orderNumber] ?? buildOrderDraft(order)),
+                              shippingServiceName: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <select
+                        value={orderDrafts[order.orderNumber]?.shipmentStatus ?? order.shipmentStatus}
+                        onChange={(event) =>
+                          setOrderDrafts((prev) => ({
+                            ...prev,
+                            [order.orderNumber]: {
+                              ...(prev[order.orderNumber] ?? buildOrderDraft(order)),
+                              shipmentStatus: event.target.value as ShipmentStatus,
+                            },
+                          }))
+                        }
+                      >
+                        <option value="NOT_BOOKED">NOT_BOOKED</option>
+                        <option value="BOOKED">BOOKED</option>
+                        <option value="PICKED_UP">PICKED_UP</option>
+                        <option value="IN_TRANSIT">IN_TRANSIT</option>
+                        <option value="OUT_FOR_DELIVERY">OUT_FOR_DELIVERY</option>
+                        <option value="DELIVERED">DELIVERED</option>
+                        <option value="FAILED_ATTEMPT">FAILED_ATTEMPT</option>
+                        <option value="RTO_INITIATED">RTO_INITIATED</option>
+                        <option value="RTO_DELIVERED">RTO_DELIVERED</option>
+                        <option value="CANCELLED">CANCELLED</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="admin-order-inline-input"
+                        placeholder="Tracking number"
+                        value={orderDrafts[order.orderNumber]?.trackingNumber ?? ""}
+                        onChange={(event) =>
+                          setOrderDrafts((prev) => ({
+                            ...prev,
+                            [order.orderNumber]: {
+                              ...(prev[order.orderNumber] ?? buildOrderDraft(order)),
+                              trackingNumber: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <input
+                        className="admin-order-inline-input"
+                        placeholder="https://tracking-link"
+                        value={orderDrafts[order.orderNumber]?.trackingUrl ?? ""}
+                        onChange={(event) =>
+                          setOrderDrafts((prev) => ({
+                            ...prev,
+                            [order.orderNumber]: {
+                              ...(prev[order.orderNumber] ?? buildOrderDraft(order)),
+                              trackingUrl: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      {order.trackingUrl ? (
+                        <a
+                          className="admin-inline-link"
+                          href={order.trackingUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open tracking link
+                        </a>
+                      ) : null}
+                    </td>
+                    <td>
+                      <strong>{order.emailStatus}</strong>
+                      <br />
+                      <span className="admin-inline-note">{order.email}</span>
+                    </td>
                     <td>{formatPrice(order.total)}</td>
                     <td>
                       <button
@@ -1147,10 +1720,9 @@ export default function AdminPage() {
                         className="text-btn"
                         disabled={
                           updatingOrderNumber === order.orderNumber ||
-                          (orderStatusDrafts[order.orderNumber] ?? order.paymentStatus) ===
-                            order.paymentStatus
+                          !isOrderDraftDirty(order, orderDrafts[order.orderNumber])
                         }
-                        onClick={() => void handleSaveOrderStatus(order)}
+                        onClick={() => void handleSaveOrder(order)}
                       >
                         {updatingOrderNumber === order.orderNumber ? "Saving..." : "Save"}
                       </button>

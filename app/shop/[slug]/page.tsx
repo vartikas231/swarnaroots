@@ -2,12 +2,13 @@
 
 import { AddToCartButton } from "@/app/components/add-to-cart-button";
 import { ProductCard } from "@/app/components/product-card";
+import { ProductGallery } from "@/app/components/product-gallery";
 import { useStorefront } from "@/app/components/storefront-provider";
+import { getProductImages } from "@/app/data/herbs";
 import { formatPrice } from "@/app/lib/format";
 import { toAbsoluteUrl } from "@/app/lib/seo";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import type { CSSProperties } from "react";
 
 export default function ProductDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -30,11 +31,7 @@ export default function ProductDetailPage() {
   const relatedProducts = state.products
     .filter((item) => item.id !== product.id && item.category === product.category)
     .slice(0, 3);
-  const detailVisualStyle = product.imageUrl
-    ? ({
-        "--detail-image": `url(${product.imageUrl})`,
-      } as CSSProperties)
-    : undefined;
+  const productImages = getProductImages(product);
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -42,7 +39,7 @@ export default function ProductDetailPage() {
     description: product.shortDescription,
     sku: product.id,
     category: product.category,
-    image: product.imageUrl ? [product.imageUrl] : undefined,
+    image: productImages.length ? productImages : undefined,
     brand: {
       "@type": "Brand",
       name: "Swarna Roots",
@@ -69,14 +66,7 @@ export default function ProductDetailPage() {
       />
 
       <section className="section-card product-detail reveal reveal-delay-1">
-        <div
-          className={`detail-visual ${product.toneClass} ${product.imageUrl ? "detail-visual--photo" : ""}`}
-          style={detailVisualStyle}
-        >
-          <span className="tag">{product.category}</span>
-          <h1>{product.name}</h1>
-          <p>{product.botanicalName}</p>
-        </div>
+        <ProductGallery key={product.id} product={product} />
 
         <div className="detail-content">
           <p className="eyebrow">Product details</p>
@@ -119,7 +109,7 @@ export default function ProductDetailPage() {
       {relatedProducts.length > 0 ? (
         <section className="section-card reveal reveal-delay-2">
           <div className="section-head">
-            <h2>Related herbs</h2>
+            <h2>Related products</h2>
             <Link href="/shop">See all</Link>
           </div>
           <div className="product-grid">

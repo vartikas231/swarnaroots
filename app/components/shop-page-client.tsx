@@ -114,63 +114,8 @@ export function ShopPageClient() {
     return byMode.slice(0, 4);
   }, [state.products, suggestionMode]);
 
-  const marketplaceLinks = useMemo(() => {
-    const links = [
-      {
-        label: "Shop on Amazon",
-        href: state.marketplaces.amazonUrl,
-      },
-      {
-        label: "Shop on Flipkart",
-        href: state.marketplaces.flipkartUrl,
-      },
-    ];
-    return links.filter((item) => /^https?:\/\//i.test(item.href));
-  }, [state.marketplaces.amazonUrl, state.marketplaces.flipkartUrl]);
-
   return (
     <div className="page-stack">
-      <section className="section-card reveal reveal-delay-1">
-        <p className="eyebrow">Catalog</p>
-        <h1 className="page-title">Shop by category</h1>
-        <p className="page-subtitle">
-          Explore herbal powders, wellness oils, functional foods, teas, capsules, and
-          wellness candles. Use the quick tags or sidebar filters for focused collections.
-        </p>
-        <div className="category-badges">
-          {categoryStats
-            .filter((item) => item.id !== "all" && item.count > 0)
-            .map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={
-                  effectiveSelectedCategory === item.id ? "tag tag-button is-active" : "tag tag-button"
-                }
-                onClick={() => setSelectedCategory(item.id)}
-              >
-                {item.label} ({item.count})
-              </button>
-            ))}
-        </div>
-
-        {marketplaceLinks.length > 0 ? (
-          <div className="marketplace-actions">
-            {marketplaceLinks.map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-outline"
-              >
-                {item.label}
-              </a>
-            ))}
-          </div>
-        ) : null}
-      </section>
-
       <section className="section-card reveal reveal-delay-2">
         <div className="section-head">
           <h2>Suggested products</h2>
