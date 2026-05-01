@@ -612,10 +612,11 @@ export default function AdminPage() {
       return;
     }
 
-    updateProductImages(productId, payload.product.images);
+    const savedProduct = payload.product;
+    updateProductImages(productId, savedProduct.images);
     setProductImageDrafts((prev) => ({
       ...prev,
-      [productId]: payload.product.images.join("\n"),
+      [productId]: savedProduct.images.join("\n"),
     }));
   };
 
