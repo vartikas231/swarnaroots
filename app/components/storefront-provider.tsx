@@ -18,6 +18,7 @@ import {
   starterCategories,
   type HerbProduct,
 } from "@/app/data/herbs";
+import { mergeStorefrontProductOverrides } from "@/app/lib/storefront-products";
 import {
   createContext,
   useCallback,
@@ -389,6 +390,38 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
       }),
     );
   }, [state, hasLoadedStorage]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadProductOverrides() {
+      try {
+        const response = await fetch("/api/storefront/products", {
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as {
+          products?: Array<{ slug: string; images: string[] }>;
+        };
+
+        if (!response.ok || !payload.products?.length || isCancelled) {
+          return;
+        }
+
+        setState((prev) => ({
+          ...prev,
+          products: mergeStorefrontProductOverrides(prev.products, payload.products ?? []),
+        }));
+      } catch {
+        // Ignore override fetch failures and keep current storefront state.
+      }
+    }
+
+    void loadProductOverrides();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
