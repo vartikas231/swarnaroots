@@ -16,6 +16,8 @@ export function ShopPageClient() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("recommended");
+  const [productsPerPage, setProductsPerPage] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
   const [suggestionMode, setSuggestionMode] = useState<
     "daily" | "immunity" | "digestion" | "stress"
   >("daily");
@@ -76,6 +78,13 @@ export function ShopPageClient() {
     return [...list].sort((a, b) => Number(b.featured) - Number(a.featured));
   }, [state.products, search, effectiveSelectedCategory, inStockOnly, effectiveMaxPrice, sortMode]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * productsPerPage;
+    return filteredProducts.slice(startIndex, startIndex + productsPerPage);
+  }, [filteredProducts, productsPerPage, safeCurrentPage]);
+
   const categoryStats = useMemo(() => {
     const categories = state.categories.map((category) => ({
       id: category,
@@ -113,6 +122,12 @@ export function ShopPageClient() {
 
     return byMode.slice(0, 4);
   }, [state.products, suggestionMode]);
+
+  const pageOptions = [10, 25, 50, 100];
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.min(Math.max(1, page), totalPages));
+  };
 
   return (
     <div className="page-stack">
@@ -180,7 +195,10 @@ export function ShopPageClient() {
                   <button
                     type="button"
                     className={isActive ? "shop-category-btn is-active" : "shop-category-btn"}
-                    onClick={() => setSelectedCategory(item.id)}
+                    onClick={() => {
+                      setSelectedCategory(item.id);
+                      setCurrentPage(1);
+                    }}
                   >
                     <span>{item.label}</span>
                     <strong>{item.count}</strong>
@@ -204,7 +222,10 @@ export function ShopPageClient() {
                 Search
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setCurrentPage(1);
+                  }}
                   placeholder="Search herbs, oils, foods, tea, candles, or botanical name"
                 />
               </label>
@@ -212,12 +233,31 @@ export function ShopPageClient() {
                 Sort by
                 <select
                   value={sortMode}
-                  onChange={(event) => setSortMode(event.target.value as SortMode)}
+                  onChange={(event) => {
+                    setSortMode(event.target.value as SortMode);
+                    setCurrentPage(1);
+                  }}
                 >
                   <option value="recommended">Recommended</option>
                   <option value="price-asc">Price low to high</option>
                   <option value="price-desc">Price high to low</option>
                   <option value="name-asc">Name A-Z</option>
+                </select>
+              </label>
+              <label>
+                Products per page
+                <select
+                  value={productsPerPage}
+                  onChange={(event) => {
+                    setProductsPerPage(Number(event.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  {pageOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option} products
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="field-span-2">
@@ -227,7 +267,10 @@ export function ShopPageClient() {
                   min={100}
                   max={Math.max(100, maxCatalogPrice)}
                   value={effectiveMaxPrice}
-                  onChange={(event) => setMaxPrice(Number(event.target.value))}
+                  onChange={(event) => {
+                    setMaxPrice(Number(event.target.value));
+                    setCurrentPage(1);
+                  }}
                 />
                 <span className="range-value">Up to INR {effectiveMaxPrice}</span>
               </label>
@@ -237,7 +280,10 @@ export function ShopPageClient() {
               <input
                 type="checkbox"
                 checked={inStockOnly}
-                onChange={(event) => setInStockOnly(event.target.checked)}
+                onChange={(event) => {
+                  setInStockOnly(event.target.checked);
+                  setCurrentPage(1);
+                }}
               />
               Show in-stock products only
             </label>
@@ -250,11 +296,62 @@ export function ShopPageClient() {
 
           <section className="section-card reveal reveal-delay-2">
             {filteredProducts.length > 0 ? (
-              <div className="product-grid">
-                {filteredProducts.map((product, index) => (
+              <>
+                <div className="shop-results-meta">
+                  <p>
+                    Showing {(safeCurrentPage - 1) * productsPerPage + 1}
+                    {" - "}
+                    {Math.min(safeCurrentPage * productsPerPage, filteredProducts.length)}
+                    {" of "}
+                    {filteredProducts.length}
+                  </p>
+                  <p>
+                    Page {safeCurrentPage} of {totalPages}
+                  </p>
+                </div>
+                <div className="product-grid">
+                {paginatedProducts.map((product, index) => (
                   <ProductCard key={product.id} product={product} index={index} />
                 ))}
-              </div>
+                </div>
+                {totalPages > 1 ? (
+                  <div className="shop-pagination" aria-label="Products pagination">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      disabled={safeCurrentPage === 1}
+                      onClick={() => goToPage(safeCurrentPage - 1)}
+                    >
+                      Previous
+                    </button>
+                    <div className="shop-pagination-pages">
+                      {Array.from({ length: totalPages }, (_, index) => index + 1)
+                        .slice(
+                          Math.max(0, safeCurrentPage - 3),
+                          Math.max(0, safeCurrentPage - 3) + 5,
+                        )
+                        .map((page) => (
+                          <button
+                            key={page}
+                            type="button"
+                            className={page === safeCurrentPage ? "shop-page-btn is-active" : "shop-page-btn"}
+                            onClick={() => goToPage(page)}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      disabled={safeCurrentPage === totalPages}
+                      onClick={() => goToPage(safeCurrentPage + 1)}
+                    >
+                      Next
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <div className="empty-state">
                 <h1>No matching products</h1>

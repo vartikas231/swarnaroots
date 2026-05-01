@@ -1,9 +1,9 @@
 "use client";
 
 import { useCart } from "@/app/components/cart-provider";
+import { getProductImages } from "@/app/data/herbs";
 import { formatPrice } from "@/app/lib/format";
 import Link from "next/link";
-import type { CSSProperties } from "react";
 
 export default function CartPage() {
   const { lineItems, subtotal, setQuantity, removeItem, clearCart } = useCart();
@@ -35,20 +35,24 @@ export default function CartPage() {
 
         <div className="cart-items">
           {lineItems.map((item) => {
-            const thumbStyle = item.product.imageUrl
-              ? ({
-                  "--cart-image": `url(${item.product.imageUrl})`,
-                } as CSSProperties)
-              : undefined;
+            const primaryImage = getProductImages(item.product)[0];
 
             return (
               <article key={item.productId} className="cart-item">
-                <div
-                  className={`cart-thumb ${item.product.toneClass} ${item.product.imageUrl ? "cart-thumb--photo" : ""}`}
-                  style={thumbStyle}
-                />
+                <Link
+                  href={`/shop/${item.product.slug}`}
+                  className={`cart-thumb ${item.product.toneClass} ${primaryImage ? "cart-thumb--photo" : ""}`}
+                  aria-label={`Open ${item.product.name}`}
+                >
+                  {primaryImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={primaryImage} alt={item.product.name} className="cart-thumb-image" />
+                  ) : null}
+                </Link>
                 <div className="cart-copy">
-                  <h2>{item.product.name}</h2>
+                  <h2>
+                    <Link href={`/shop/${item.product.slug}`}>{item.product.name}</Link>
+                  </h2>
                   <p>{item.product.unitLabel}</p>
                   <strong>{formatPrice(item.product.price)}</strong>
                 </div>

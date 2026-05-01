@@ -1,7 +1,7 @@
 "use client";
 
 import { AddToCartButton } from "@/app/components/add-to-cart-button";
-import type { HerbProduct } from "@/app/data/herbs";
+import { getProductImages, type HerbProduct } from "@/app/data/herbs";
 import { formatPrice } from "@/app/lib/format";
 import type { CSSProperties } from "react";
 import Link from "next/link";
@@ -12,11 +12,7 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, index = 0 }: ProductCardProps) {
-  const thumbStyle = product.imageUrl
-    ? ({
-        "--thumb-image": `url(${product.imageUrl})`,
-      } as CSSProperties)
-    : undefined;
+  const primaryImage = getProductImages(product)[0];
 
   return (
     <article
@@ -25,12 +21,24 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
     >
       <Link
         href={`/shop/${product.slug}`}
-        className={`product-thumb ${product.toneClass} ${product.imageUrl ? "product-thumb--photo" : ""}`}
-        style={thumbStyle}
+        className={`product-thumb ${product.toneClass} ${primaryImage ? "product-thumb--photo" : ""}`}
       >
-        <span className="product-category">{product.category}</span>
-        <strong>{product.name}</strong>
-        <small>{product.botanicalName}</small>
+        {primaryImage ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={primaryImage}
+              alt={product.name}
+              className="product-thumb-image"
+            />
+            <span className="product-thumb-overlay" aria-hidden="true" />
+          </>
+        ) : null}
+        <div className="product-thumb-copy">
+          <span className="product-category">{product.category}</span>
+          <strong>{product.name}</strong>
+          <small>{product.botanicalName}</small>
+        </div>
       </Link>
 
       <div className="product-body">

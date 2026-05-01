@@ -59,6 +59,7 @@ export default function ProductDetailPage() {
   return (
     <div className="page-stack">
       <script
+        suppressHydrationWarning
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(productJsonLd),

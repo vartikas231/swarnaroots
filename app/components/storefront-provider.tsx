@@ -379,6 +379,28 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (event.key !== STORAGE_KEY || !event.newValue) {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(event.newValue) as Partial<StorefrontState> & {
+          themeRevision?: number;
+        };
+        setState(normalizeState(parsed));
+      } catch {
+        // Ignore malformed cross-tab updates.
+      }
+    }
+
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!hasLoadedStorage) {
       return;
     }
