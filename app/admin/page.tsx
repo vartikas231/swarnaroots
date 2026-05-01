@@ -378,6 +378,8 @@ export default function AdminPage() {
     toneClass: toneOptions[0],
   });
   const [productImageDrafts, setProductImageDrafts] = useState<Record<string, string>>({});
+  const [productImagesError, setProductImagesError] = useState<string | null>(null);
+  const [updatingProductSlug, setUpdatingProductSlug] = useState<string | null>(null);
   const [storyForm, setStoryForm] = useState({
     name: "",
     city: "",
@@ -1185,6 +1187,7 @@ export default function AdminPage() {
 
       <section className="section-card admin-section reveal reveal-delay-2">
         <h2>Products</h2>
+        {productImagesError ? <p className="form-error">{productImagesError}</p> : null}
         <form
           className="admin-grid-form"
           onSubmit={(event) => {
