@@ -124,8 +124,8 @@ export const siteConfig: SiteConfig = {
   brand: {
     name: "Swarna Roots",
     siteUrl: "https://www.swarnaroots.com",
-    logoUrl: "/swarna-roots-mark.svg",
-    faviconUrl: "/favicon.svg",
+    logoUrl: "/logo.png",
+    faviconUrl: "/logo.png",
     tagline: "Modern Ayurveda Luxury",
     heroTitle: "Ancient herbal wisdom, crafted for healthier modern living.",
     heroDescription:

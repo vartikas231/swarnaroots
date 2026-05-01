@@ -78,7 +78,7 @@ export const metadata: Metadata = {
     icon: [
       {
         url: siteConfig.brand.faviconUrl,
-        type: "image/svg+xml",
+        type: "image/png",
       },
     ],
     shortcut: siteConfig.brand.faviconUrl,
