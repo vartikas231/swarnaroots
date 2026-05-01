@@ -575,8 +575,46 @@ export default function AdminPage() {
     });
   };
 
-  const saveProductImages = (productId: string) => {
-    updateProductImages(productId, parseImageUrlList(productImageDrafts[productId] ?? ""));
+  const saveProductImages = async (productId: string, productSlug: string) => {
+    const images = parseImageUrlList(productImageDrafts[productId] ?? "");
+    if (!images.length) {
+      setProductImagesError("Add at least one valid image URL before saving.");
+      return;
+    }
+
+    setProductImagesError(null);
+    setUpdatingProductSlug(productSlug);
+
+    const response = await fetch(`/api/admin/products/${encodeURIComponent(productSlug)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ images }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          error?: string;
+          product?: {
+            slug: string;
+            images: string[];
+          };
+        }
+      | null;
+
+    setUpdatingProductSlug(null);
+
+    if (!response.ok || !payload?.product) {
+      setProductImagesError(payload?.error ?? "Failed to save product images.");
+      return;
+    }
+
+    updateProductImages(productId, payload.product.images);
+    setProductImageDrafts((prev) => ({
+      ...prev,
+      [productId]: payload.product.images.join("\n"),
+    }));
   };
 
   const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
@@ -1340,9 +1378,10 @@ export default function AdminPage() {
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
-                          onClick={() => saveProductImages(product.id)}
+                          disabled={updatingProductSlug === product.slug}
+                          onClick={() => saveProductImages(product.id, product.slug)}
                         >
-                          Save images
+                          {updatingProductSlug === product.slug ? "Saving..." : "Save images"}
                         </button>
                         <button
                           type="button"
