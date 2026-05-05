@@ -6,7 +6,7 @@ import { useStorefront } from "@/app/components/storefront-provider";
 import { siteConfig } from "@/app/config/site";
 import { formatPrice } from "@/app/lib/format";
 import Link from "next/link";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 interface RazorpayPaymentSuccessPayload {
   razorpay_order_id: string;
@@ -98,7 +98,7 @@ function pickFirstNonEmpty(...values: Array<string | undefined>) {
 
 export default function CheckoutPage() {
   const { lineItems, subtotal, clearCart } = useCart();
-  const { recordPayment } = useStorefront();
+  const { recordPayment, state } = useStorefront();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
   const [orderLookupEmail, setOrderLookupEmail] = useState<string | null>(null);
@@ -122,6 +122,17 @@ export default function CheckoutPage() {
   const itemCount = useMemo(() => {
     return lineItems.reduce((sum, item) => sum + item.quantity, 0);
   }, [lineItems]);
+  const visiblePaymentMethods = state.paymentVisibility.visibleMethods;
+  const visiblePaymentLabels = visiblePaymentMethods.map((method) => {
+    if (method === "upi") return "UPI";
+    if (method === "card") return "Credit / Debit Cards";
+    return "Cash on Delivery";
+  });
+  useEffect(() => {
+    if (!visiblePaymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(visiblePaymentMethods[0] ?? "cod");
+    }
+  }, [paymentMethod, visiblePaymentMethods]);
 
   const mapEmbedUrl = useMemo(() => {
     if (!locationCoords) {
@@ -573,46 +584,51 @@ export default function CheckoutPage() {
 
           <fieldset className="payment-methods">
             <legend>Payment method</legend>
-            <label>
-              <input
-                type="radio"
-                name="payment"
-                value="upi"
-                checked={paymentMethod === "upi"}
-                onChange={(event) => setPaymentMethod(event.target.value as "upi")}
-              />
-              UPI (recommended)
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="payment"
-                value="card"
-                checked={paymentMethod === "card"}
-                onChange={(event) =>
-                  setPaymentMethod(event.target.value as "card")
-                }
-              />
-              Credit / Debit Card
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="payment"
-                value="cod"
-                checked={paymentMethod === "cod"}
-                onChange={(event) => setPaymentMethod(event.target.value as "cod")}
-              />
-              Cash on delivery
-            </label>
+            {visiblePaymentMethods.includes("upi") ? (
+              <label>
+                <input
+                  type="radio"
+                  name="payment"
+                  value="upi"
+                  checked={paymentMethod === "upi"}
+                  onChange={(event) => setPaymentMethod(event.target.value as "upi")}
+                />
+                UPI (recommended)
+              </label>
+            ) : null}
+            {visiblePaymentMethods.includes("card") ? (
+              <label>
+                <input
+                  type="radio"
+                  name="payment"
+                  value="card"
+                  checked={paymentMethod === "card"}
+                  onChange={(event) =>
+                    setPaymentMethod(event.target.value as "card")
+                  }
+                />
+                Credit / Debit Card
+              </label>
+            ) : null}
+            {visiblePaymentMethods.includes("cod") ? (
+              <label>
+                <input
+                  type="radio"
+                  name="payment"
+                  value="cod"
+                  checked={paymentMethod === "cod"}
+                  onChange={(event) => setPaymentMethod(event.target.value as "cod")}
+                />
+                Cash on delivery
+              </label>
+            ) : null}
           </fieldset>
 
           <article className="gateway-note">
             <p>Secure payment gateway</p>
             <strong>{siteConfig.payment.primaryGateway} checkout</strong>
             <span>
-              Supports {siteConfig.payment.supportedMethods.join(", ")}. EMI can stay disabled
-              from your gateway dashboard.
+              Currently showing {visiblePaymentLabels.join(", ")}.
             </span>
           </article>
 

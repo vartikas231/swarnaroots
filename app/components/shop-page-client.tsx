@@ -218,6 +218,22 @@ export function ShopPageClient() {
         <div className="shop-main">
           <section className="section-card reveal reveal-delay-2">
             <div className="filters-grid">
+              <label className="shop-category-select">
+                Categories
+                <select
+                  value={effectiveSelectedCategory}
+                  onChange={(event) => {
+                    setSelectedCategory(event.target.value);
+                    setCurrentPage(1);
+                  }}
+                >
+                  {categoryStats.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label} ({item.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 Search
                 <input
