@@ -1,6 +1,7 @@
 "use client";
 
 import { HealthIcon } from "@/app/components/health-icon";
+import { MediaBoard } from "@/app/components/media-board";
 import { ProductCard } from "@/app/components/product-card";
 import { useStorefront } from "@/app/components/storefront-provider";
 import { siteConfig } from "@/app/config/site";
@@ -76,7 +77,6 @@ export function HomePageClient() {
   const spotlightCollection = heroCollections[0];
   const supportingCollections = heroCollections.slice(1);
   const curatedCategories = categoryQuickLinks.slice(0, 10);
-  const heroProductHighlights = featuredProducts.slice(0, 3);
 
   return (
     <div className="page-stack">
@@ -139,22 +139,7 @@ export function HomePageClient() {
         </div>
 
         <div className="hero-media-stage">
-          <div className="hero-media-canvas">
-            <span className="hero-media-label">Hero media stage</span>
-            <strong>Ready for GIFs, product loops, or a bold campaign visual later.</strong>
-            <p>
-              This area is intentionally built like a premium banner canvas so we can add
-              motion visuals, ingredient films, or product storytelling without changing the
-              homepage layout again.
-            </p>
-            <div className="hero-media-tags">
-              {heroProductHighlights.map((product) => (
-                <span key={product.id} className="hero-media-tag">
-                  {product.name}
-                </span>
-              ))}
-            </div>
-          </div>
+          <MediaBoard className="hero-media-canvas" items={state.media.heroMediaUrls} />
 
           <div className="hero-media-grid">
             {spotlightCollection ? (
@@ -246,20 +231,22 @@ export function HomePageClient() {
         <div className="section-head">
           <h2>Why customers trust this store</h2>
         </div>
-        <div className="trust-grid">
-          {siteConfig.home.trustPoints.map((point, index) => (
-            <article
-              key={point.id}
-              className="trust-card reveal-stagger"
-              style={{ "--i": index } as CSSProperties}
-            >
-              <span className="icon-badge" aria-hidden="true">
-                <HealthIcon name={point.icon} size={16} />
-              </span>
-              <h3>{point.title}</h3>
-              <p>{point.description}</p>
-            </article>
-          ))}
+        <div className="trust-marquee" aria-label="Customer trust highlights">
+          <div className="trust-marquee-track">
+            {[...siteConfig.home.trustPoints, ...siteConfig.home.trustPoints].map((point, index) => (
+              <article
+                key={`${point.id}-${index}`}
+                className="trust-card trust-card--marquee"
+                style={{ "--i": index } as CSSProperties}
+              >
+                <span className="icon-badge" aria-hidden="true">
+                  <HealthIcon name={point.icon} size={16} />
+                </span>
+                <h3>{point.title}</h3>
+                <p>{point.description}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -323,6 +310,7 @@ export function HomePageClient() {
           <h2>Customer satisfaction stories</h2>
           <Link href="/shop">Join our wellness community</Link>
         </div>
+        <MediaBoard className="review-media-board" items={state.media.reviewMediaUrls} />
         <div className="stories-grid">
           {state.stories.map((story, index) => (
             <article

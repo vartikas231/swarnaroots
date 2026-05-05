@@ -83,6 +83,11 @@ export interface SiteConfig {
     primaryGateway: string;
     supportedMethods: string[];
   };
+  storefront: {
+    heroMediaUrls: string[];
+    reviewMediaUrls: string[];
+    visiblePaymentMethods: Array<"upi" | "card" | "cod">;
+  };
   theme: ThemeTokens;
   brandStyle: BrandStyleTokens;
   layout: LayoutTokens;
@@ -165,6 +170,11 @@ export const siteConfig: SiteConfig = {
     primaryGateway: "Razorpay",
     supportedMethods: ["UPI", "Credit Cards", "Debit Cards"],
   },
+  storefront: {
+    heroMediaUrls: [],
+    reviewMediaUrls: [],
+    visiblePaymentMethods: ["cod", "upi", "card"],
+  },
   theme: {
     bg: "#fff8f4",
     paper: "#fffdfb",
@@ -188,8 +198,8 @@ export const siteConfig: SiteConfig = {
     buttonStyle: "filled-soft",
   },
   layout: {
-    shellMaxWidthPx: 1680,
-    shellSideMarginPx: 48,
+    shellMaxWidthPx: 1440,
+    shellSideMarginPx: 32,
     heroMinHeightVh: 56,
     cardRadiusPx: 10,
     sectionGapPx: 18,

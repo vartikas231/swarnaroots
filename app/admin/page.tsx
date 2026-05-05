@@ -56,7 +56,7 @@ const layoutFields: Array<{
     key: "shellMaxWidthPx",
     label: "Website max width",
     min: 1100,
-    max: 1920,
+    max: 1560,
     step: 20,
     unit: "px",
     helper: "Higher means the website uses more screen width.",
@@ -64,8 +64,8 @@ const layoutFields: Array<{
   {
     key: "shellSideMarginPx",
     label: "Side margin",
-    min: 12,
-    max: 140,
+    min: 16,
+    max: 84,
     step: 4,
     unit: "px",
     helper: "Higher means more breathing room on both sides.",
@@ -311,6 +311,13 @@ function parseImageUrlList(value: string) {
     .slice(0, 5);
 }
 
+function parseUrlList(value: string) {
+  return value
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function stringifyProductImages(images: string[] | undefined, imageUrl?: string) {
   const combined = [...(images ?? []), imageUrl ?? ""]
     .map((item) => item.trim())
@@ -363,6 +370,10 @@ export default function AdminPage() {
     removeStory,
     updateMarketplaces,
     resetMarketplaces,
+    updateMedia,
+    resetMedia,
+    updatePaymentVisibility,
+    resetPaymentVisibility,
   } = useStorefront();
 
   const [categoryInput, setCategoryInput] = useState("");
@@ -396,6 +407,17 @@ export default function AdminPage() {
     amazonUrl: state.marketplaces.amazonUrl,
     flipkartUrl: state.marketplaces.flipkartUrl,
   });
+  const [mediaForm, setMediaForm] = useState({
+    heroMediaUrls: state.media.heroMediaUrls.join("\n"),
+    reviewMediaUrls: state.media.reviewMediaUrls.join("\n"),
+  });
+  const [paymentVisibilityForm, setPaymentVisibilityForm] = useState<Array<"upi" | "card" | "cod">>(
+    state.paymentVisibility.visibleMethods,
+  );
+  const [mediaSettingsError, setMediaSettingsError] = useState<string | null>(null);
+  const [paymentVisibilityError, setPaymentVisibilityError] = useState<string | null>(null);
+  const [isSavingMediaSettings, setIsSavingMediaSettings] = useState(false);
+  const [isSavingPaymentVisibility, setIsSavingPaymentVisibility] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
@@ -548,6 +570,17 @@ export default function AdminPage() {
       flipkartUrl: state.marketplaces.flipkartUrl,
     });
   }, [state.marketplaces.amazonUrl, state.marketplaces.flipkartUrl]);
+
+  useEffect(() => {
+    setMediaForm({
+      heroMediaUrls: state.media.heroMediaUrls.join("\n"),
+      reviewMediaUrls: state.media.reviewMediaUrls.join("\n"),
+    });
+  }, [state.media.heroMediaUrls, state.media.reviewMediaUrls]);
+
+  useEffect(() => {
+    setPaymentVisibilityForm(state.paymentVisibility.visibleMethods);
+  }, [state.paymentVisibility.visibleMethods]);
 
   useEffect(() => {
     setProductImageDrafts((prev) => {
@@ -1130,6 +1163,191 @@ export default function AdminPage() {
           </label>
           <button type="submit" className="btn btn-primary field-span-2">
             Save marketplace links
+          </button>
+        </form>
+      </section>
+
+      <section className="section-card admin-section reveal reveal-delay-2">
+        <div className="section-head">
+          <h2>Homepage and review media</h2>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => {
+              resetMedia();
+            }}
+          >
+            Reset media
+          </button>
+        </div>
+        {mediaSettingsError ? <p className="form-error">{mediaSettingsError}</p> : null}
+        <p className="admin-helper">
+          Paste GIF, MP4, or image URLs here. One URL per line. The hero board rotates automatically.
+        </p>
+        <form
+          className="admin-grid-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setMediaSettingsError(null);
+            setIsSavingMediaSettings(true);
+            const response = await fetch("/api/admin/storefront/settings", {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                media: {
+                  heroMediaUrls: parseUrlList(mediaForm.heroMediaUrls),
+                  reviewMediaUrls: parseUrlList(mediaForm.reviewMediaUrls),
+                },
+              }),
+            });
+            const payload = (await response.json().catch(() => null)) as
+              | {
+                  error?: string;
+                  settings?: {
+                    media?: {
+                      heroMediaUrls?: string[];
+                      reviewMediaUrls?: string[];
+                    };
+                  };
+                }
+              | null;
+            setIsSavingMediaSettings(false);
+            if (!response.ok || !payload?.settings?.media) {
+              setMediaSettingsError(payload?.error ?? "Failed to save media board settings.");
+              return;
+            }
+            updateMedia({
+              heroMediaUrls: payload.settings.media.heroMediaUrls ?? [],
+              reviewMediaUrls: payload.settings.media.reviewMediaUrls ?? [],
+            });
+          }}
+        >
+          <label className="field-span-2">
+            Hero media board URLs
+            <textarea
+              rows={4}
+              placeholder="https://res.cloudinary.com/.../hero-1.gif"
+              value={mediaForm.heroMediaUrls}
+              onChange={(event) =>
+                setMediaForm((prev) => ({ ...prev, heroMediaUrls: event.target.value }))
+              }
+            />
+          </label>
+          <label className="field-span-2">
+            Customer review section media URLs
+            <textarea
+              rows={4}
+              placeholder="https://res.cloudinary.com/.../review-1.mp4"
+              value={mediaForm.reviewMediaUrls}
+              onChange={(event) =>
+                setMediaForm((prev) => ({ ...prev, reviewMediaUrls: event.target.value }))
+              }
+            />
+          </label>
+          <button type="submit" className="btn btn-primary field-span-2" disabled={isSavingMediaSettings}>
+            {isSavingMediaSettings ? "Saving homepage media..." : "Save homepage media"}
+          </button>
+        </form>
+      </section>
+
+      <section className="section-card admin-section reveal reveal-delay-2">
+        <div className="section-head">
+          <h2>Checkout payment visibility</h2>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => {
+              resetPaymentVisibility();
+            }}
+          >
+            Reset payment options
+          </button>
+        </div>
+        <p className="admin-helper">
+          Turn payment methods on or off without changing checkout code. Keep only COD visible until keys are ready.
+        </p>
+        {paymentVisibilityError ? <p className="form-error">{paymentVisibilityError}</p> : null}
+        <form
+          className="admin-grid-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setPaymentVisibilityError(null);
+            setIsSavingPaymentVisibility(true);
+            const response = await fetch("/api/admin/storefront/settings", {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                paymentVisibility: {
+                  visibleMethods: paymentVisibilityForm,
+                },
+              }),
+            });
+            const payload = (await response.json().catch(() => null)) as
+              | {
+                  error?: string;
+                  settings?: {
+                    paymentVisibility?: {
+                      visibleMethods?: Array<"upi" | "card" | "cod">;
+                    };
+                  };
+                }
+              | null;
+            setIsSavingPaymentVisibility(false);
+            if (!response.ok || !payload?.settings?.paymentVisibility?.visibleMethods) {
+              setPaymentVisibilityError(payload?.error ?? "Failed to save payment visibility.");
+              return;
+            }
+            updatePaymentVisibility(payload.settings.paymentVisibility.visibleMethods);
+          }}
+        >
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={paymentVisibilityForm.includes("cod")}
+              onChange={(event) =>
+                setPaymentVisibilityForm((prev) =>
+                  event.target.checked
+                    ? Array.from(new Set([...prev, "cod"]))
+                    : prev.filter((item) => item !== "cod"),
+                )
+              }
+            />
+            Show COD
+          </label>
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={paymentVisibilityForm.includes("upi")}
+              onChange={(event) =>
+                setPaymentVisibilityForm((prev) =>
+                  event.target.checked
+                    ? Array.from(new Set([...prev, "upi"]))
+                    : prev.filter((item) => item !== "upi"),
+                )
+              }
+            />
+            Show UPI
+          </label>
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={paymentVisibilityForm.includes("card")}
+              onChange={(event) =>
+                setPaymentVisibilityForm((prev) =>
+                  event.target.checked
+                    ? Array.from(new Set([...prev, "card"]))
+                    : prev.filter((item) => item !== "card"),
+                )
+              }
+            />
+            Show Credit / Debit Card
+          </label>
+          <button type="submit" className="btn btn-primary field-span-2" disabled={isSavingPaymentVisibility}>
+            {isSavingPaymentVisibility ? "Saving payment visibility..." : "Save payment visibility"}
           </button>
         </form>
       </section>

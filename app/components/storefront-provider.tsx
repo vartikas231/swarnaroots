@@ -51,6 +51,15 @@ export interface MarketplaceLinks {
   flipkartUrl: string;
 }
 
+export interface StorefrontMediaSettings {
+  heroMediaUrls: string[];
+  reviewMediaUrls: string[];
+}
+
+export interface PaymentVisibilitySettings {
+  visibleMethods: Array<"upi" | "card" | "cod">;
+}
+
 interface StorefrontState {
   theme: ThemeTokens;
   brandStyle: BrandStyleTokens;
@@ -60,6 +69,8 @@ interface StorefrontState {
   stories: CustomerStory[];
   payments: PaymentRecord[];
   marketplaces: MarketplaceLinks;
+  media: StorefrontMediaSettings;
+  paymentVisibility: PaymentVisibilitySettings;
 }
 
 interface AddProductInput {
@@ -108,6 +119,10 @@ interface StorefrontContextValue {
   recordPayment: (input: RecordPaymentInput) => void;
   updateMarketplaces: (patch: Partial<MarketplaceLinks>) => void;
   resetMarketplaces: () => void;
+  updateMedia: (patch: Partial<StorefrontMediaSettings>) => void;
+  resetMedia: () => void;
+  updatePaymentVisibility: (methods: Array<"upi" | "card" | "cod">) => void;
+  resetPaymentVisibility: () => void;
 }
 
 const STORAGE_KEY = "swarna-storefront-v1";
@@ -126,6 +141,10 @@ const defaultState: StorefrontState = {
   stories: defaultStories,
   payments: [],
   marketplaces: siteConfig.marketplaces,
+  media: siteConfig.storefront,
+  paymentVisibility: {
+    visibleMethods: siteConfig.storefront.visiblePaymentMethods,
+  },
 };
 
 const iconThemeValues: IconTheme[] = [
@@ -233,13 +252,13 @@ function normalizeLayout(layout: Partial<LayoutTokens> | undefined): LayoutToken
     shellMaxWidthPx: clampNumber(
       layout?.shellMaxWidthPx,
       1100,
-      1920,
+      1560,
       defaultState.layout.shellMaxWidthPx,
     ),
     shellSideMarginPx: clampNumber(
       layout?.shellSideMarginPx,
-      12,
-      140,
+      16,
+      84,
       defaultState.layout.shellSideMarginPx,
     ),
     heroMinHeightVh: clampNumber(
@@ -274,6 +293,21 @@ function normalizeExternalUrl(value: string | undefined, fallback: string) {
   }
 
   return normalized;
+}
+
+function normalizeMediaUrls(values: string[] | undefined, fallback: string[] = []) {
+  const seen = new Set<string>();
+  return [...(values ?? []), ...fallback]
+    .map((item) => normalizeImageUrl(item))
+    .filter((item): item is string => Boolean(item))
+    .filter((item) => {
+      if (seen.has(item)) {
+        return false;
+      }
+      seen.add(item);
+      return true;
+    })
+    .slice(0, 8);
 }
 
 function mergeDefaultCatalogProducts(rawProducts: HerbProduct[]) {
@@ -350,7 +384,35 @@ function normalizeState(
       defaultState.marketplaces.flipkartUrl,
     ),
   };
-  return { theme, brandStyle, layout, products, categories, stories, payments, marketplaces };
+  const media = {
+    heroMediaUrls: normalizeMediaUrls(raw.media?.heroMediaUrls, defaultState.media.heroMediaUrls),
+    reviewMediaUrls: normalizeMediaUrls(
+      raw.media?.reviewMediaUrls,
+      defaultState.media.reviewMediaUrls,
+    ),
+  };
+  const allowedMethods = ["upi", "card", "cod"] as const;
+  const visibleMethods = Array.isArray(raw.paymentVisibility?.visibleMethods)
+    ? raw.paymentVisibility.visibleMethods.filter((item): item is "upi" | "card" | "cod" =>
+        allowedMethods.includes(item as "upi" | "card" | "cod"),
+      )
+    : defaultState.paymentVisibility.visibleMethods;
+  return {
+    theme,
+    brandStyle,
+    layout,
+    products,
+    categories,
+    stories,
+    payments,
+    marketplaces,
+    media,
+    paymentVisibility: {
+      visibleMethods: visibleMethods.length
+        ? visibleMethods
+        : defaultState.paymentVisibility.visibleMethods,
+    },
+  };
 }
 
 function getInitialState() {
@@ -439,6 +501,61 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
     }
 
     void loadProductOverrides();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadStorefrontSettings() {
+      try {
+        const response = await fetch("/api/storefront/settings", {
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as {
+          settings?: {
+            media?: {
+              heroMediaUrls?: string[];
+              reviewMediaUrls?: string[];
+            };
+            paymentVisibility?: {
+              visibleMethods?: Array<"upi" | "card" | "cod">;
+            };
+          };
+        };
+
+        if (!response.ok || !payload.settings || isCancelled) {
+          return;
+        }
+
+        setState((prev) => ({
+          ...prev,
+          media: {
+            heroMediaUrls: normalizeMediaUrls(
+              payload.settings?.media?.heroMediaUrls,
+              prev.media.heroMediaUrls,
+            ),
+            reviewMediaUrls: normalizeMediaUrls(
+              payload.settings?.media?.reviewMediaUrls,
+              prev.media.reviewMediaUrls,
+            ),
+          },
+          paymentVisibility: {
+            visibleMethods:
+              payload.settings?.paymentVisibility?.visibleMethods?.length
+                ? payload.settings.paymentVisibility.visibleMethods
+                : prev.paymentVisibility.visibleMethods,
+          },
+        }));
+      } catch {
+        // Ignore settings fetch failures and keep current storefront state.
+      }
+    }
+
+    void loadStorefrontSettings();
 
     return () => {
       isCancelled = true;
@@ -689,6 +806,45 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
     }));
   }, []);
 
+  const updateMedia = useCallback((patch: Partial<StorefrontMediaSettings>) => {
+    setState((prev) => ({
+      ...prev,
+      media: {
+        heroMediaUrls: normalizeMediaUrls(
+          patch.heroMediaUrls,
+          prev.media.heroMediaUrls,
+        ),
+        reviewMediaUrls: normalizeMediaUrls(
+          patch.reviewMediaUrls,
+          prev.media.reviewMediaUrls,
+        ),
+      },
+    }));
+  }, []);
+
+  const resetMedia = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      media: defaultState.media,
+    }));
+  }, []);
+
+  const updatePaymentVisibility = useCallback((methods: Array<"upi" | "card" | "cod">) => {
+    setState((prev) => ({
+      ...prev,
+      paymentVisibility: {
+        visibleMethods: methods.length ? methods : ["cod"],
+      },
+    }));
+  }, []);
+
+  const resetPaymentVisibility = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      paymentVisibility: defaultState.paymentVisibility,
+    }));
+  }, []);
+
   const value = useMemo<StorefrontContextValue>(
     () => ({
       state,
@@ -708,6 +864,10 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
       recordPayment,
       updateMarketplaces,
       resetMarketplaces,
+      updateMedia,
+      resetMedia,
+      updatePaymentVisibility,
+      resetPaymentVisibility,
     }),
     [
       state,
@@ -727,6 +887,10 @@ export function StorefrontProvider({ children }: { children: React.ReactNode }) 
       recordPayment,
       updateMarketplaces,
       resetMarketplaces,
+      updateMedia,
+      resetMedia,
+      updatePaymentVisibility,
+      resetPaymentVisibility,
     ],
   );
 
